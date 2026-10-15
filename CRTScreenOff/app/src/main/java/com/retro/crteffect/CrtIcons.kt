@@ -1,0 +1,131 @@
+package com.retro.crteffect
+
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.dp
+
+@Composable
+fun MoreVertIcon(
+    tint: Color = Color.White,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier.size(24.dp)) {
+        val radius = 2.dp.toPx()
+        val centerX = size.width / 2f
+        drawCircle(color = tint, radius = radius, center = Offset(centerX, size.height * 0.25f))
+        drawCircle(color = tint, radius = radius, center = Offset(centerX, size.height * 0.50f))
+        drawCircle(color = tint, radius = radius, center = Offset(centerX, size.height * 0.75f))
+    }
+}
+
+@Composable
+fun BackArrowIcon(
+    tint: Color = Color.White,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier.size(24.dp)) {
+        val strokeWidth = 2.4.dp.toPx()
+        val path = Path().apply {
+            moveTo(size.width * 0.60f, size.height * 0.25f)
+            lineTo(size.width * 0.35f, size.height * 0.5f)
+            lineTo(size.width * 0.60f, size.height * 0.75f)
+        }
+        drawPath(
+            path = path,
+            color = tint,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.35f, size.height * 0.5f),
+            end = Offset(size.width * 0.72f, size.height * 0.5f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+@Composable
+fun InfoIcon(
+    tint: Color = Color.White,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier.size(20.dp)) {
+        val strokeWidth = 1.8.dp.toPx()
+        drawCircle(
+            color = tint,
+            radius = (size.minDimension / 2f) - (strokeWidth / 2f),
+            center = Offset(size.width / 2f, size.height / 2f),
+            style = Stroke(width = strokeWidth)
+        )
+        // Dot
+        drawCircle(
+            color = tint,
+            radius = strokeWidth * 0.75f,
+            center = Offset(size.width / 2f, size.height * 0.32f)
+        )
+        // Stem
+        drawLine(
+            color = tint,
+            start = Offset(size.width / 2f, size.height * 0.46f),
+            end = Offset(size.width / 2f, size.height * 0.72f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+    }
+}
+
+/**
+ * Normal Material dynamic chevron icon that smoothly rotates between 0° (down) and 180° (up).
+ */
+@Composable
+fun ChevronIcon(
+    isExpanded: Boolean,
+    tint: Color = Color(0xFF94A3B8),
+    modifier: Modifier = Modifier
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (isExpanded) 180f else 0f,
+        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+        label = "ChevronRotation"
+    )
+    Canvas(
+        modifier = modifier
+            .size(18.dp)
+            .graphicsLayer { rotationZ = rotation }
+    ) {
+        val strokeWidth = 1.9.dp.toPx()
+        val path = Path().apply {
+            moveTo(size.width * 0.26f, size.height * 0.40f)
+            lineTo(size.width * 0.50f, size.height * 0.64f)
+            lineTo(size.width * 0.74f, size.height * 0.40f)
+        }
+        drawPath(
+            path = path,
+            color = tint,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+    }
+}
+

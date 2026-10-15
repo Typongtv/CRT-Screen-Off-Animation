@@ -1,6 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.CRTScreenOff" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.CRTScreenOff" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Android 12+ Splash Screen -->
+        <item name="android:windowSplashScreenBackground">#121212</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/transparent_splash_icon</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimationDuration">0</item>
+        <item name="android:statusBarColor">#121212</item>
+        <item name="android:navigationBarColor">#121212</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
 
     <!-- Style to completely disable window entry and exit animations -->
     <style name="Animation.NoAnimation" parent="@android:style/Animation">

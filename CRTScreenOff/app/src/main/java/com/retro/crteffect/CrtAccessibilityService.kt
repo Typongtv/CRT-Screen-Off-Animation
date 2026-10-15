@@ -63,6 +63,12 @@ class CrtAccessibilityService : AccessibilityService() {
      *    eliminating the flash of the underlying app before sleep.
      */
     fun executeCrtShutdown() {
+        val km = getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
+        if (km != null && km.isKeyguardLocked) {
+            performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+            return
+        }
+
         val now = SystemClock.uptimeMillis()
         if (isAnimating) {
             // Debounce rapid duplicate gestures within 1.5s
@@ -75,7 +81,19 @@ class CrtAccessibilityService : AccessibilityService() {
         isAnimating = true
         animStartTime = now
 
-        val durationMs = prefs.getInt("anim_speed", 350).toLong()
+        val durationMs = prefs.getInt("anim_speed", 500).toLong()
+        val enhancedOverdrive = prefs.getBoolean("enable_enhanced_overdrive", false)
+        val afterglowMs = prefs.getInt("afterglow_duration", 1000).toLong()
+        val resistanceName = prefs.getString("coil_resistance", CoilResistance.HEAVY.name)
+        val coilResistance = try {
+            CoilResistance.valueOf(resistanceName ?: CoilResistance.HEAVY.name)
+        } catch (_: Exception) {
+            CoilResistance.HEAVY
+        }
+        val enableMagneticStretch = prefs.getBoolean("enable_magnetic_stretch", false)
+        val stretchBonus = if (enhancedOverdrive && enableMagneticStretch) 1.20f else 1.0f
+        val effectiveDurationMs = if (enhancedOverdrive) (durationMs.toFloat() * coilResistance.timeMultiplier * stretchBonus).toLong() else durationMs
+        val totalDurationMs = if (enhancedOverdrive && afterglowMs > 0L) (effectiveDurationMs + afterglowMs) else effectiveDurationMs
 
         // Safety Watchdog: Failsafe to guarantee overlay removal even if system sleep is interrupted
         mainHandler.removeCallbacksAndMessages(null)
@@ -84,7 +102,7 @@ class CrtAccessibilityService : AccessibilityService() {
                 performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
                 safelyRemoveOverlay()
             }
-        }, durationMs + 1200L)
+        }, totalDurationMs + 2000L)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             takeScreenshot(
@@ -143,11 +161,30 @@ class CrtAccessibilityService : AccessibilityService() {
             }
         }
 
+        val enhancedOverdrive = prefs.getBoolean("enable_enhanced_overdrive", false)
+        val flashIntensity = prefs.getFloat("flash_intensity", 1.0f)
+        val afterglowMs = prefs.getInt("afterglow_duration", 1000).toLong()
+        val resistanceName = prefs.getString("coil_resistance", CoilResistance.HEAVY.name)
+        val coilResistance = try {
+            CoilResistance.valueOf(resistanceName ?: CoilResistance.HEAVY.name)
+        } catch (_: Exception) {
+            CoilResistance.HEAVY
+        }
+
+        val enableMagneticStretch = prefs.getBoolean("enable_magnetic_stretch", false)
+        val enableAnamorphicFlare = prefs.getBoolean("enable_anamorphic_flare", true)
+
         crtView = CrtView(
             context = this,
             screenBitmap = capturedBitmap,
             style = style,
             durationMs = durationMs,
+            enhancedOverdrive = enhancedOverdrive,
+            flashIntensity = flashIntensity,
+            afterglowMs = afterglowMs,
+            coilResistance = coilResistance,
+            enableMagneticStretch = enableMagneticStretch,
+            enableAnamorphicFlare = enableAnamorphicFlare,
             onAnimationComplete = {
                 // 1. Trigger the native system lock screen action immediately
                 performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)

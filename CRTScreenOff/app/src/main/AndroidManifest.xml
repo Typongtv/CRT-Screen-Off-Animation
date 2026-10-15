@@ -35,6 +35,11 @@
             android:taskAffinity=""
             android:launchMode="singleInstance"
             android:theme="@style/Theme.TransparentNoAnimation"
+            android:showWhenLocked="true"
+            android:inheritShowWhenLocked="true"
+            android:turnScreenOn="false"
+            android:icon="@mipmap/ic_lock_launcher"
+            android:roundIcon="@mipmap/ic_lock_launcher_round"
             android:label="@string/shortcut_lock_label">
             <!-- App Launcher: Appears in 'Start Application' / 'Open App' lists -->
             <intent-filter>

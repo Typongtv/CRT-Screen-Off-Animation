@@ -3,7 +3,7 @@
     <shortcut
         android:shortcutId="crt_lock_trigger"
         android:enabled="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/ic_lock_launcher"
         android:shortcutShortLabel="@string/shortcut_lock_label"
         android:shortcutLongLabel="@string/shortcut_lock_long_label">
         <intent
