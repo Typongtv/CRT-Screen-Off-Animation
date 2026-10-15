@@ -1,11 +1,11 @@
-﻿<p align="center">
+<p align="center">
   <img src="docs/images/crt_hero_banner.jpg" alt="CRT Screen-Off Presentation Banner" width="100%" />
 </p>
 
 # CRT Screen-Off Animation
 
 <p align="center">
-  <strong>Authentic Retro Electron-Beam Sleep Animation Engine for Modern Android (Android 13–16+)</strong>
+  <strong>CyanogenMod-Inspired Retro Electron-Beam Sleep Animation Engine for Modern Android (Android 13–16+)</strong>
 </p>
 
 <p align="center">
@@ -32,7 +32,7 @@ As deflection coils collapsed the vertical sweep, the electron beam density flar
 
 - **⚡ 100% Rootless & Knox Safe:** Zero root, zero Magisk, and zero framework modification required. Knox fuses and Play Integrity remain untouched.
 - **🎨 Dual Physics Animation Engines:**
-  - **CyanogenMod Retro Engine:** Recreates the authentic CM7/CM9 `ElectronBeam` sweep with dynamic vertical squish, true-color prism split, delayed crescendo flare, and clean horizontal beam zip.
+  - **CyanogenMod Retro Engine:** Inspired by the classic CM7/CM9 `ElectronBeam` sweep with dynamic vertical squish, true-color prism split, delayed crescendo flare, and clean horizontal beam zip.
   - **Phosphor Overdrive Engine:** Simulates vintage CRT cathode tubes with customizable phosphor persistence (Green P1, Amber P3, Blue P4, White P4, Cyan), chromatic aberration, raster scanlines, and discharge flicker.
 - **🚀 120Hz Hardware Acceleration:** Powered by native Android AGSL shaders running directly on the GPU for zero-stutter 120Hz deflection.
 - **🔋 Zero Idle Battery Impact:** No persistent foreground service, background wake locks, or polling loops. The engine is completely dormant until invoked.

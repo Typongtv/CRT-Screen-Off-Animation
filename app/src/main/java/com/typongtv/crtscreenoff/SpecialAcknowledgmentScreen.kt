@@ -194,7 +194,7 @@ fun SpecialAcknowledgmentScreen(
                 // Pillar 1: AGSL Shaders
                 AcknowledgmentPillarCard(
                     title = "120Hz AGSL GPU Shader Engine",
-                    description = "Engineered real-time AGSL GPU runtime shaders to computationally model cathode tube curvature, dual-harmonic magnetic deflection resistance, dynamic scanline jitter, and authentic OLED phosphor afterglow."
+                    description = "Engineered real-time AGSL GPU runtime shaders to computationally model cathode tube curvature, dual-harmonic magnetic deflection resistance, dynamic scanline jitter, and rich phosphor afterglow."
                 )
 
                 // Pillar 2: Knox-Safe Rootless

@@ -2,5 +2,5 @@
     <string name="app_name">CRT Screen-Off</string>
     <string name="shortcut_lock_label">CRT Lock</string>
     <string name="shortcut_lock_long_label">Trigger CRT Screen-Off Animation</string>
-    <string name="accessibility_desc">Authentic CRT Screen-Off Electron Beam Animation Engine. Captures the screen on command and performs global lock action.</string>
+    <string name="accessibility_desc">CyanogenMod-inspired CRT Screen-Off Electron Beam Animation Engine. Captures the screen on command and performs global lock action.</string>
 </resources>

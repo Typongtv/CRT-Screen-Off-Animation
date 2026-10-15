@@ -176,7 +176,7 @@ fun AboutScreen(
                     )
 
                     Text(
-                        text = "Authentic Retro Cathode-Ray Tube Physics for Modern Android",
+                        text = "CyanogenMod-Inspired Retro CRT Physics for Modern Android",
                         fontSize = 14.sp,
                         lineHeight = 18.sp,
                         color = Color(0xFF94A3B8),

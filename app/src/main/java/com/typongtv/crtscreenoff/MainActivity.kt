@@ -954,7 +954,7 @@ class MainActivity : ComponentActivity() {
                                 }
                                 Text(
                                     if (enableCrtAnimation)
-                                        "CM7/CM9 classic CRT collapse with directional snap & authentic timing."
+                                        "CM7/CM9 classic CRT collapse with directional snap & CyanogenMod-inspired timing."
                                     else
                                         "CRT screen-off animation is disabled. Screen will sleep with native display lock.",
                                     fontSize = 11.sp,
