@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="crt_lock_trigger"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_lock_label"
+        android:shortcutLongLabel="@string/shortcut_lock_long_label">
+        <intent
+            android:action="com.retro.crteffect.TRIGGER_LOCK"
+            android:targetPackage="com.retro.crteffect"
+            android:targetClass="com.retro.crteffect.LockTriggerActivity" />
+    </shortcut>
+</shortcuts>
