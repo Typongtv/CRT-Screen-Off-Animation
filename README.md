@@ -72,6 +72,49 @@ Because this app utilizes Android's **Accessibility Service** API, complete tran
 
 ---
 
+## 📲 Installation & Android 13–16+ First-Time Setup Guide
+
+Because this app is distributed directly via GitHub and utilizes Android's official Accessibility API, modern Android security layers require two quick one-time confirmations during installation:
+
+### 1. Google Play Protect Warning
+
+Google Play Protect actively flags APKs that are sideloaded outside the Google Play Store. Depending on your Android version and region, follow whichever option appears on your screen:
+
+#### • Scenario A: Standard Warning ("Install anyway" is visible)
+1. On the Play Protect pop-up, tap **"More details"**.
+2. Tap **"Install anyway"**.
+
+#### • Scenario B: Strict Block (No "Install anyway" option available)
+If Google completely blocks the installation without an "Install anyway" button:
+1. Open the **Google Play Store** app.
+2. Tap your **Profile icon** (top-right) ➔ Tap **Play Protect**.
+3. Tap the **⚙️ gear icon** in the top-right corner.
+4. Temporarily toggle **OFF** *"Scan apps with Play Protect"*.
+5. Return to your file manager and install `CRT-Screen-Off-v1.0.apk`.
+6. *(Recommended)* Return to Play Protect settings and toggle scanning back **ON**.
+
+> **Note on Safety:** As verified in our open codebase and manifest, this application requests **0 internet permissions** (`android.permission.INTERNET` is not present). The app physically cannot connect to any server, collect data, or transmit information off your device.
+
+---
+
+### 2. Accessibility Toggle Greyed Out? ("Restricted Setting")
+
+On **Android 13, 14, 15, and 16+**, Android automatically greys out Accessibility toggles for all sideloaded APKs by default. Use either of these methods to unlock it:
+
+#### • Method A: The 3-Dot App Info Shortcut (All Android Devices)
+1. On your home screen, **long-press the CRT Screen-Off app icon** and tap the **ⓘ (App Info)** button.
+2. Tap the **three dots (⋮)** in the top-right corner.
+3. Tap **"Allow restricted settings"** and confirm with your fingerprint or PIN.
+4. Now go to **Settings** ➔ **Accessibility** ➔ **Installed apps** ➔ **CRT Screen-Off** and toggle it **ON**.
+
+#### • Method B: Samsung Galaxy (One UI) Settings Menu
+1. Go to: **Settings** ➔ **Security and privacy**.
+2. Tap **Controls and alerts** *(or "More security settings")*.
+3. Tap **Accessibility special access** *(or "Allow restricted settings")*.
+4. Turn on the toggle for **CRT Screen-Off**.
+5. Return to **Accessibility** to activate the service.
+
+---
 ## 🛠️ Building From Source
 
 ### Prerequisites
