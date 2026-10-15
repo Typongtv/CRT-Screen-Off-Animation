@@ -44,18 +44,6 @@ As deflection coils collapsed the vertical sweep, the electron beam density flar
 
 ---
 
-## 🖼️ Application Preview
-
-<p align="center">
-  <img src="docs/images/CRT_Screen_Off.png" alt="CRT Screen Off App" width="30%" />
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/images/CRT_Lock.png" alt="CRT Lock Trigger" width="30%" />
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="docs/images/CRT_SplashScreen.png" alt="CRT Splash Screen" width="30%" />
-</p>
-
----
-
 ## ⚙️ How It Works
 
 1. **Trigger:** You tap the **CRT Lock** shortcut, trigger a gesture via Samsung One Hand Operation+, or fire the broadcast.
