@@ -18,9 +18,9 @@
 
 ---
 
-## 📺 Project Heritage & Lineage
+## Project Heritage & Lineage
 
-Back in the golden era of Android (**Android 2.3 Gingerbread through 4.0 Ice Cream Sandwich**), Google and the legendary **CyanogenMod community (CM7 / CM9)** introduced the iconic CRT screen-off animation, handled natively in C++ inside Android's display compositor SurfaceFlinger (`ElectronBeam.cpp`).
+Back in the CM7 / CM9 days, the legendary **CyanogenMod community (CM7 / CM9)** introduced the iconic CRT screen-off animation, handled natively in C++ inside Android's display compositor SurfaceFlinger (`ElectronBeam.cpp`).
 
 As deflection coils collapsed the vertical sweep, the electron beam density flared into a searing horizontal razor line before vanishing into pure cathode darkness. When newer Android releases retired this native effect, achieving it historically required device rooting, custom ROMs, or invasive framework-hooking tools that tripped Knox hardware fuses and broke SafetyNet / Play Integrity.
 
@@ -28,15 +28,15 @@ As deflection coils collapsed the vertical sweep, the electron beam density flar
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-- **⚡ 100% Rootless & Knox Safe:** Zero root, zero Magisk, and zero framework modification required. Knox fuses and Play Integrity remain untouched.
-- **🎨 Dual Physics Animation Engines:**
+- **100% Rootless & Knox Safe:** Zero root, zero Magisk, and zero framework modification required. Knox fuses and Play Integrity remain untouched.
+- **Dual Physics Animation Engines:**
   - **CyanogenMod Retro Engine:** Inspired by the classic CM7/CM9 `ElectronBeam` sweep with dynamic vertical squish, true-color prism split, delayed crescendo flare, and clean horizontal beam zip.
   - **Phosphor Overdrive Engine:** Simulates vintage CRT cathode tubes with customizable phosphor persistence (Green P1, Amber P3, Blue P4, White P4, Cyan), chromatic aberration, raster scanlines, and discharge flicker.
-- **🚀 120Hz Hardware Acceleration:** Powered by native Android AGSL shaders running directly on the GPU for zero-stutter 120Hz deflection.
-- **🔋 Zero Idle Battery Impact:** No persistent foreground service, background wake locks, or polling loops. The engine is completely dormant until invoked.
-- **👆 One-Tap & Gesture Triggers:**
+- **120Hz Hardware Acceleration:** Powered by native Android AGSL shaders running directly on the GPU for zero-stutter 120Hz deflection.
+- **Zero Idle Battery Impact:** No persistent foreground service, background wake locks, or polling loops. The engine is completely dormant until invoked.
+- **One-Tap & Gesture Triggers:**
   - Dedicated zero-flicker headless trigger (`LockTriggerActivity`).
   - Home screen shortcuts & launcher icons.
   - Native integration with **Samsung Good Lock (One Hand Operation+)** for edge-swipe CRT screen-off gestures.
@@ -44,16 +44,15 @@ As deflection coils collapsed the vertical sweep, the electron beam density flar
 
 ---
 
-
 > [!CAUTION]
-> ### ⚠️ Hardware Advisory: Capacitive Phosphor Bleed 😜
+> ### Hardware Advisory: Capacitive Phosphor Bleed 😜
 > When interacting with the settings dashboard, you may notice micro-static visual arcs tracing your fingertips across the AMOLED panel. Please remain calm—it is merely localized harmonic resonance between your screen glass and our virtual cathode-ray tube.
 > 
 > *Just kidding!* That’s my custom touch-static overlay at work. It's a purely aesthetic homage to the days when touching your TV screen gave you an electrostatic high-five and made the hairs on your forearm stand on end. No rubber-soled shoes required.
 
 ---
 
-## ⚙️ How It Works
+## How It Works
 
 1. **Trigger:** You tap the **CRT Lock** shortcut, trigger a gesture via Samsung One Hand Operation+, or fire the broadcast.
 2. **Instant Capture:** The lightweight `CrtAccessibilityService` captures the top-level screen frame entirely in-memory using Android's official `takeScreenshot` API.
@@ -62,17 +61,17 @@ As deflection coils collapsed the vertical sweep, the electron beam density flar
 
 ---
 
-## 🔒 Security & Privacy Transparency
+## Security & Privacy Transparency
 
 Because this app utilizes Android's **Accessibility Service** API, complete transparency is paramount:
 
-* **🚫 NO INTERNET PERMISSION:** The application does **not** declare `android.permission.INTERNET` in its manifest. It is physically impossible for the app to send data off your device.
-* **🔒 Ephemeral In-Memory Frame:** The screen capture is only held in volatile memory for the duration of the 300–400ms animation and is immediately recycled.
-* **🛡️ Zero Telemetry / Zero Tracking:** No analytics libraries, third-party SDKs, or background trackers are included.
+* **NO INTERNET PERMISSION:** The application does **not** declare `android.permission.INTERNET` in its manifest. It is physically impossible for the app to send data off your device.
+* **Ephemeral In-Memory Frame:** The screen capture is only held in volatile memory for the duration of the 300–400ms animation and is immediately recycled.
+* **Zero Telemetry / Zero Tracking:** No analytics libraries, third-party SDKs, or background trackers are included.
 
 ---
 
-## 📲 Installation & Android 13–16+ First-Time Setup Guide
+## Installation & Android 13–16+ First-Time Setup Guide
 
 Because this app is distributed directly via GitHub and utilizes Android's official Accessibility API, modern Android security layers require two quick one-time confirmations during installation:
 
@@ -88,7 +87,7 @@ Google Play Protect actively flags APKs that are sideloaded outside the Google P
 If Google completely blocks the installation without an "Install anyway" button:
 1. Open the **Google Play Store** app.
 2. Tap your **Profile icon** (top-right) ➔ Tap **Play Protect**.
-3. Tap the **⚙️ gear icon** in the top-right corner.
+3. Tap the **gear icon** in the top-right corner.
 4. Temporarily toggle **OFF** *"Scan apps with Play Protect"*.
 5. Return to your file manager and install `CRT-Screen-Off-v1.0.apk`.
 6. *(Recommended)* Return to Play Protect settings and toggle scanning back **ON**.
@@ -102,7 +101,7 @@ If Google completely blocks the installation without an "Install anyway" button:
 On **Android 13, 14, 15, and 16+**, Android automatically greys out Accessibility toggles for all sideloaded APKs by default. Use either of these methods to unlock it:
 
 #### • Method A: The 3-Dot App Info Shortcut (All Android Devices)
-1. On your home screen, **long-press the CRT Screen-Off app icon** and tap the **ⓘ (App Info)** button.
+1. On your home screen, **long-press the CRT Screen-Off app icon** and tap the **(App Info)** button.
 2. Tap the **three dots (⋮)** in the top-right corner.
 3. Tap **"Allow restricted settings"** and confirm with your fingerprint or PIN.
 4. Now go to **Settings** ➔ **Accessibility** ➔ **Installed apps** ➔ **CRT Screen-Off** and toggle it **ON**.
@@ -115,7 +114,8 @@ On **Android 13, 14, 15, and 16+**, Android automatically greys out Accessibilit
 5. Return to **Accessibility** to activate the service.
 
 ---
-## 🛠️ Building From Source
+
+## Building From Source
 
 ### Prerequisites
 - Android Studio Hedgehog (2023.1.1) or newer
@@ -139,7 +139,7 @@ The compiled APK will be output to:
 
 ---
 
-## 📄 License
+## License
 
 **Copyright (c) 2026 Typongtv. All Rights Reserved.**
 
