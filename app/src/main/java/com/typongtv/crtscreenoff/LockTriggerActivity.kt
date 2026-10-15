@@ -1,4 +1,4 @@
-package com.retro.crteffect
+package com.typongtv.crtscreenoff
 
 import android.accessibilityservice.AccessibilityService
 import android.app.Activity
@@ -71,7 +71,7 @@ class LockTriggerActivity : Activity() {
         // 1. If called from Good Lock's "Home screen shortcuts" picker:
         if (intent?.action == Intent.ACTION_CREATE_SHORTCUT) {
             val shortcutIntent = Intent(this, LockTriggerActivity::class.java).apply {
-                action = "com.retro.crteffect.TRIGGER_LOCK"
+                action = "com.typongtv.crtscreenoff.TRIGGER_LOCK"
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION
             }
             val resultIntent = Intent().apply {

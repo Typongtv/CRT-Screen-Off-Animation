@@ -1,4 +1,4 @@
-package com.retro.crteffect
+package com.typongtv.crtscreenoff
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing

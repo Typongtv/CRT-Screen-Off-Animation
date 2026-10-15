@@ -1,4 +1,4 @@
-package com.retro.crteffect
+package com.typongtv.crtscreenoff
 
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner

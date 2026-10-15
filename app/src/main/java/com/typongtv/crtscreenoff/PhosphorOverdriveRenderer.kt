@@ -1,4 +1,4 @@
-package com.retro.crteffect
+package com.typongtv.crtscreenoff
 
 import android.graphics.Bitmap
 import android.graphics.BitmapShader

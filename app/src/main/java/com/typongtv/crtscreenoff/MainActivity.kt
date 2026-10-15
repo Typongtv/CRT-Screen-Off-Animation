@@ -1,4 +1,4 @@
-package com.retro.crteffect
+package com.typongtv.crtscreenoff
 
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
@@ -908,8 +908,8 @@ class MainActivity : ComponentActivity() {
                                                         "  3. Set action: Launch Application -> 'CRT Lock'\n\n" +
                                                         "• Automation Broadcast (Zero-UI Background Trigger):\n" +
                                                         "  Tasker, MacroDroid, or Automate can trigger the CRT effect with zero screen flicker or window overhead:\n" +
-                                                        "  • Action: com.retro.crteffect.TRIGGER_LOCK\n" +
-                                                        "  • Package: com.retro.crteffect",
+                                                        "  • Action: com.typongtv.crtscreenoff.TRIGGER_LOCK\n" +
+                                                        "  • Package: com.typongtv.crtscreenoff",
                                                 fontSize = 11.5.sp,
                                                 color = Color(0xFFCBD5E1),
                                                 lineHeight = 16.sp
@@ -1844,7 +1844,7 @@ class MainActivity : ComponentActivity() {
                                 DischargingTestButton(
                                     onClick = {
                                         val intent = Intent(this@MainActivity, LockTriggerActivity::class.java).apply {
-                                            action = "com.retro.crteffect.TRIGGER_LOCK"
+                                            action = "com.typongtv.crtscreenoff.TRIGGER_LOCK"
                                             flags = Intent.FLAG_ACTIVITY_NEW_TASK
                                         }
                                         startActivity(intent)

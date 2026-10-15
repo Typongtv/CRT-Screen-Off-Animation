@@ -1,4 +1,4 @@
-package com.retro.crteffect
+package com.typongtv.crtscreenoff
 
 import android.accessibilityservice.AccessibilityService
 import android.content.BroadcastReceiver

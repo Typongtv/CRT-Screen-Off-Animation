@@ -34,13 +34,13 @@
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
-            android:taskAffinity="com.retro.crteffect.locktrigger"
+            android:taskAffinity="com.typongtv.crtscreenoff.locktrigger"
             android:theme="@style/Theme.TransparentNoAnimation"
             android:icon="@mipmap/ic_lock_launcher"
             android:roundIcon="@mipmap/ic_lock_launcher_round"
             android:label="@string/shortcut_lock_label">
             <intent-filter>
-                <action android:name="com.retro.crteffect.TRIGGER_LOCK" />
+                <action android:name="com.typongtv.crtscreenoff.TRIGGER_LOCK" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <!-- Enables Samsung Good Lock 'Home screen shortcuts' selection -->
@@ -81,7 +81,7 @@
             android:name=".CrtLockReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.retro.crteffect.TRIGGER_LOCK" />
+                <action android:name="com.typongtv.crtscreenoff.TRIGGER_LOCK" />
             </intent-filter>
         </receiver>
     </application>

@@ -5,10 +5,10 @@ plugins {
 }
 
 android {
-    namespace = "com.retro.crteffect"
+    namespace = "com.typongtv.crtscreenoff"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.retro.crteffect"
+        applicationId = "com.typongtv.crtscreenoff"
         minSdk = 33
         targetSdk = 36
         versionCode = 1

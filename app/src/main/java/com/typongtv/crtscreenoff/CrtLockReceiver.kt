@@ -1,4 +1,4 @@
-package com.retro.crteffect
+package com.typongtv.crtscreenoff
 
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -9,11 +9,11 @@ import android.content.Intent
  * and ADB shell triggers.
  *
  * Usage:
- *   am broadcast -a com.retro.crteffect.TRIGGER_LOCK
+ *   am broadcast -a com.typongtv.crtscreenoff.TRIGGER_LOCK
  */
 class CrtLockReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
-        if (intent?.action == "com.retro.crteffect.TRIGGER_LOCK") {
+        if (intent?.action == "com.typongtv.crtscreenoff.TRIGGER_LOCK") {
             val service = CrtAccessibilityService.instance
             service?.executeCrtShutdown()
         }

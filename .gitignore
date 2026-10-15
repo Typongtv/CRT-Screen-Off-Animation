@@ -16,3 +16,7 @@ local.properties
 *.code-workspace
 diff_*.txt
 diff_main.txt
+
+CRTScreenOff/
+*.jks
+*.keystore

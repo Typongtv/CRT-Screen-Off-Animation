@@ -7,8 +7,8 @@
         android:shortcutShortLabel="@string/shortcut_lock_label"
         android:shortcutLongLabel="@string/shortcut_lock_long_label">
         <intent
-            android:action="com.retro.crteffect.TRIGGER_LOCK"
-            android:targetPackage="com.retro.crteffect"
-            android:targetClass="com.retro.crteffect.LockTriggerActivity" />
+            android:action="com.typongtv.crtscreenoff.TRIGGER_LOCK"
+            android:targetPackage="com.typongtv.crtscreenoff"
+            android:targetClass="com.typongtv.crtscreenoff.LockTriggerActivity" />
     </shortcut>
 </shortcuts>
