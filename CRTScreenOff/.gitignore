@@ -13,3 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+*.code-workspace
+diff_*.txt
+diff_main.txt

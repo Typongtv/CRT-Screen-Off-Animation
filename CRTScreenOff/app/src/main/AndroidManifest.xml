@@ -16,7 +16,9 @@
         <!-- 1. Configuration & Setup Dashboard -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -32,20 +34,11 @@
             android:exported="true"
             android:excludeFromRecents="true"
             android:noHistory="true"
-            android:taskAffinity=""
-            android:launchMode="singleInstance"
+            android:taskAffinity="com.retro.crteffect.locktrigger"
             android:theme="@style/Theme.TransparentNoAnimation"
-            android:showWhenLocked="true"
-            android:inheritShowWhenLocked="true"
-            android:turnScreenOn="false"
             android:icon="@mipmap/ic_lock_launcher"
             android:roundIcon="@mipmap/ic_lock_launcher_round"
             android:label="@string/shortcut_lock_label">
-            <!-- App Launcher: Appears in 'Start Application' / 'Open App' lists -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
             <intent-filter>
                 <action android:name="com.retro.crteffect.TRIGGER_LOCK" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -56,6 +49,20 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!-- 2b. Launcher Entry for One Hand Operation + 'Start application' picker -->
+        <activity-alias
+            android:name=".LockTriggerLauncherActivity"
+            android:targetActivity=".LockTriggerActivity"
+            android:exported="true"
+            android:icon="@mipmap/ic_lock_launcher"
+            android:roundIcon="@mipmap/ic_lock_launcher_round"
+            android:label="@string/shortcut_lock_label">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- 3. Accessibility Service: Silent Frame Capture & Screen Lock Execution -->
         <service
@@ -69,5 +76,13 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_config" />
         </service>
+        <!-- 4. Broadcast Receiver: Zero-Window silent trigger for automation / gestures -->
+        <receiver
+            android:name=".CrtLockReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.retro.crteffect.TRIGGER_LOCK" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

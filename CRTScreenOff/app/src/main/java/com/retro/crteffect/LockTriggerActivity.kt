@@ -5,47 +5,66 @@ import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.WindowManager
 import android.widget.Toast
 
 /**
- * Headless trigger activity designed specifically for Samsung Good Lock (One Hand Operation +)
+ * Headless trigger activity designed for Samsung Good Lock (One Hand Operation +)
  * and Home Screen launcher shortcuts.
  *
  * Configured with:
- *  - Theme.TransparentNoAnimation
- *  - showWhenLocked = true (enables triggering screen off even from the Lock Screen / Keyguard)
- *  - 0ms window transitions (no open/close animations or screen flicker)
- *  - Supports Intent.ACTION_CREATE_SHORTCUT for Good Lock's "Home screen shortcuts" picker
- *  - Handles both onCreate and onNewIntent to prevent dropped triggers
+ *  - FLAG_NOT_FOCUSABLE + FLAG_NOT_TOUCHABLE: Never steals focus from active app (Zero Blink)
+ *  - Theme.TransparentNoAnimation with windowIsFloating: Never pushes active app back (Zero Dock Peek)
+ *  - Stays alive until CrtView overlay is attached to prevent gaps
  */
 class LockTriggerActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
-            setTurnScreenOn(false)
-        } else {
-            @Suppress("DEPRECATION")
-            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
-        }
+
+        // 1. Critical: Never steal focus from active app.
+        // Stops underlying app from pausing/redrawing (eliminates the blink)
+        // and stops WindowManager from treating this as a task switch (eliminates dock peek).
+        window.addFlags(
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        )
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes.layoutInDisplayCutoutMode =
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
         }
+        disableTransitions()
         handleIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-            setShowWhenLocked(true)
-        }
+        disableTransitions()
         setIntent(intent)
         handleIntent(intent)
+    }
+
+    private fun disableTransitions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
+    }
+
+    override fun finish() {
+        super.finish()
+        disableTransitions()
     }
 
     private fun handleIntent(intent: Intent?) {
@@ -53,7 +72,7 @@ class LockTriggerActivity : Activity() {
         if (intent?.action == Intent.ACTION_CREATE_SHORTCUT) {
             val shortcutIntent = Intent(this, LockTriggerActivity::class.java).apply {
                 action = "com.retro.crteffect.TRIGGER_LOCK"
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION
             }
             val resultIntent = Intent().apply {
                 putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent)
@@ -68,35 +87,33 @@ class LockTriggerActivity : Activity() {
             return
         }
 
-        // 2. Disable all window entry/exit animations to prevent visual flicker
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
-            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-        } else {
-            @Suppress("DEPRECATION")
-            overridePendingTransition(0, 0)
-        }
+        disableTransitions()
 
-        // 3. Dispatch screen-off trigger to running Accessibility Service
+        // 2. Dispatch screen-off trigger to running Accessibility Service
         val service = CrtAccessibilityService.instance
-        val km = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-        val isLocked = km?.isKeyguardLocked == true
 
         if (service != null) {
-            if (isLocked) {
-                // Device is currently on the Lock Screen / Keyguard:
-                // Instantly put the screen to sleep (native 0ms sleep) without capture delay or errors
-                service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
-            } else {
-                service.executeCrtShutdown()
+            var hasFinished = false
+            val finishAction = {
+                if (!hasFinished) {
+                    hasFinished = true
+                    finish()
+                }
             }
+            // Failsafe timeout in case overlay attachment callback is delayed
+            val handler = Handler(Looper.getMainLooper())
+            handler.postDelayed({ finishAction() }, 1200L)
+
+            service.executeCrtShutdown(onOverlayReady = finishAction)
         } else {
-            if (!isLocked) {
+            val km = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+            if (km?.isKeyguardLocked != true) {
                 Toast.makeText(this, "Please enable CRT Accessibility Service in Settings", Toast.LENGTH_LONG).show()
                 startActivity(Intent(this, MainActivity::class.java))
             }
+            finish()
         }
-
-        finish()
     }
 }
+
+

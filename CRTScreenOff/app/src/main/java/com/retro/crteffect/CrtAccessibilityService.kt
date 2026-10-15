@@ -44,8 +44,10 @@ class CrtAccessibilityService : AccessibilityService() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         prefs = getSharedPreferences("crt_prefs", Context.MODE_PRIVATE)
 
+        // Exclusively system broadcasts: prevents Android 14+ SecurityException without needing flags
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_USER_PRESENT)
         }
         registerReceiver(screenStateReceiver, filter)
@@ -54,36 +56,111 @@ class CrtAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
     override fun onInterrupt() {}
 
+    private var lastCapturedBitmap: Bitmap? = null
+
+    private fun getFallbackBitmap(): Bitmap {
+        val last = lastCapturedBitmap
+        if (last != null && !last.isRecycled) {
+            return last
+        }
+        val metrics = resources.displayMetrics
+        val width = metrics.widthPixels.coerceAtLeast(1080)
+        val height = metrics.heightPixels.coerceAtLeast(1920)
+        val fallback = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(fallback)
+        canvas.drawColor(android.graphics.Color.BLACK)
+        return fallback
+    }
+
+    private fun attemptScreenshot(
+        durationMs: Long,
+        onOverlayReady: (() -> Unit)?,
+        isRetry: Boolean = false
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                takeScreenshot(
+                    Display.DEFAULT_DISPLAY,
+                    mainExecutor,
+                    object : TakeScreenshotCallback {
+                        override fun onSuccess(screenshotResult: ScreenshotResult) {
+                            val hardwareBuffer = screenshotResult.hardwareBuffer
+                            val colorSpace = screenshotResult.colorSpace
+                            val bitmap = try {
+                                Bitmap.wrapHardwareBuffer(hardwareBuffer, colorSpace)
+                            } catch (_: Throwable) {
+                                null
+                            } finally {
+                                hardwareBuffer.close()
+                            }
+
+                            if (bitmap != null) {
+                                lastCapturedBitmap = bitmap
+                                showOverlayAndAnimate(bitmap, durationMs, onOverlayReady)
+                            } else if (!isRetry) {
+                                // Fast 35ms retry if hardware buffer wrap encountered transient lock
+                                mainHandler.postDelayed({
+                                    attemptScreenshot(durationMs, onOverlayReady, isRetry = true)
+                                }, 35L)
+                            } else {
+                                // Guaranteed fallback: animate with fallback frame so CRT effect always fires
+                                showOverlayAndAnimate(getFallbackBitmap(), durationMs, onOverlayReady)
+                            }
+                        }
+
+                        override fun onFailure(errorCode: Int) {
+                            if (!isRetry) {
+                                // Fast 35ms retry if Samsung side-key window transition interfered with capture
+                                mainHandler.postDelayed({
+                                    attemptScreenshot(durationMs, onOverlayReady, isRetry = true)
+                                }, 35L)
+                            } else {
+                                // Guaranteed fallback: animate with fallback frame so CRT effect always fires
+                                showOverlayAndAnimate(getFallbackBitmap(), durationMs, onOverlayReady)
+                            }
+                        }
+                    }
+                )
+            } catch (_: Throwable) {
+                if (!isRetry) {
+                    mainHandler.postDelayed({
+                        attemptScreenshot(durationMs, onOverlayReady, isRetry = true)
+                    }, 35L)
+                } else {
+                    showOverlayAndAnimate(getFallbackBitmap(), durationMs, onOverlayReady)
+                }
+            }
+        } else {
+            showOverlayAndAnimate(getFallbackBitmap(), durationMs, onOverlayReady)
+        }
+    }
+
     /**
      * Executes the Non-Root Silent Capture & CRT Animation Sequence:
      * 1. Uses AccessibilityService.takeScreenshot (API 30+) without user confirmation prompts.
-     * 2. Renders the exact Xposed CRT Electron Beam animation in high-performance CrtView.
+     * 2. Renders the retro CRT Electron Beam animation in high-performance CrtView.
      * 3. Locks the physical screen via GLOBAL_ACTION_LOCK_SCREEN (API 28+).
      * 4. Holds the pure black OLED overlay for 600ms while the display powers down,
      *    eliminating the flash of the underlying app before sleep.
+     * 5. Invokes [onOverlayReady] the moment the overlay view is attached, allowing trigger
+     *    activities to finish without exposing a 1-2 frame window destruction glitch.
      */
-    fun executeCrtShutdown() {
-        val km = getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
-        if (km != null && km.isKeyguardLocked) {
+    fun executeCrtShutdown(onOverlayReady: (() -> Unit)? = null) {
+        val enableCrtAnimation = prefs.getBoolean("enable_crt_animation", true)
+        if (!enableCrtAnimation) {
             performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+            onOverlayReady?.invoke()
             return
         }
 
         val now = SystemClock.uptimeMillis()
-        if (isAnimating) {
-            // Debounce rapid duplicate gestures within 1.5s
-            if (now - animStartTime < 1500L) {
-                return
-            }
-            safelyRemoveOverlay()
-        }
-
-        isAnimating = true
-        animStartTime = now
-
-        val durationMs = prefs.getInt("anim_speed", 500).toLong()
         val enhancedOverdrive = prefs.getBoolean("enable_enhanced_overdrive", false)
-        val afterglowMs = prefs.getInt("afterglow_duration", 1000).toLong()
+        val durationMs = if (enhancedOverdrive) {
+            prefs.getInt("anim_speed_overdrive", 500).toLong()
+        } else {
+            prefs.getInt("anim_speed", 500).toLong()
+        }
+        val afterglowMs = prefs.getInt("afterglow_duration", 800).toLong()
         val resistanceName = prefs.getString("coil_resistance", CoilResistance.HEAVY.name)
         val coilResistance = try {
             CoilResistance.valueOf(resistanceName ?: CoilResistance.HEAVY.name)
@@ -95,6 +172,19 @@ class CrtAccessibilityService : AccessibilityService() {
         val effectiveDurationMs = if (enhancedOverdrive) (durationMs.toFloat() * coilResistance.timeMultiplier * stretchBonus).toLong() else durationMs
         val totalDurationMs = if (enhancedOverdrive && afterglowMs > 0L) (effectiveDurationMs + afterglowMs) else effectiveDurationMs
 
+        val debounceLimit = (totalDurationMs + 400L).coerceIn(400L, 2500L)
+        if (isAnimating) {
+            // Debounce rapid duplicate gestures while animation is in flight
+            if (now - animStartTime < debounceLimit) {
+                onOverlayReady?.invoke()
+                return
+            }
+            safelyRemoveOverlay()
+        }
+
+        isAnimating = true
+        animStartTime = now
+
         // Safety Watchdog: Failsafe to guarantee overlay removal even if system sleep is interrupted
         mainHandler.removeCallbacksAndMessages(null)
         mainHandler.postDelayed({
@@ -104,38 +194,10 @@ class CrtAccessibilityService : AccessibilityService() {
             }
         }, totalDurationMs + 2000L)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            takeScreenshot(
-                Display.DEFAULT_DISPLAY,
-                mainExecutor,
-                object : TakeScreenshotCallback {
-                    override fun onSuccess(screenshotResult: ScreenshotResult) {
-                        val hardwareBuffer = screenshotResult.hardwareBuffer
-                        val colorSpace = screenshotResult.colorSpace
-                        val bitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, colorSpace)
-                        hardwareBuffer.close()
-
-                        if (bitmap != null) {
-                            showOverlayAndAnimate(bitmap, durationMs)
-                        } else {
-                            performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
-                            safelyRemoveOverlay()
-                        }
-                    }
-
-                    override fun onFailure(errorCode: Int) {
-                        performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
-                        safelyRemoveOverlay()
-                    }
-                }
-            )
-        } else {
-            performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
-            safelyRemoveOverlay()
-        }
+        attemptScreenshot(durationMs, onOverlayReady, isRetry = false)
     }
 
-    private fun showOverlayAndAnimate(capturedBitmap: Bitmap, durationMs: Long) {
+    private fun showOverlayAndAnimate(capturedBitmap: Bitmap, durationMs: Long, onOverlayReady: (() -> Unit)? = null) {
         val styleName = prefs.getString("anim_style", CrtStyle.CLASSIC_HORIZONTAL.name)
         val style = try {
             CrtStyle.valueOf(styleName ?: CrtStyle.CLASSIC_HORIZONTAL.name)
@@ -163,7 +225,7 @@ class CrtAccessibilityService : AccessibilityService() {
 
         val enhancedOverdrive = prefs.getBoolean("enable_enhanced_overdrive", false)
         val flashIntensity = prefs.getFloat("flash_intensity", 1.0f)
-        val afterglowMs = prefs.getInt("afterglow_duration", 1000).toLong()
+        val afterglowMs = prefs.getInt("afterglow_duration", 800).toLong()
         val resistanceName = prefs.getString("coil_resistance", CoilResistance.HEAVY.name)
         val coilResistance = try {
             CoilResistance.valueOf(resistanceName ?: CoilResistance.HEAVY.name)
@@ -200,9 +262,13 @@ class CrtAccessibilityService : AccessibilityService() {
 
         try {
             windowManager.addView(crtView, params)
+            crtView?.post {
+                onOverlayReady?.invoke()
+            }
         } catch (_: Exception) {
             performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
             safelyRemoveOverlay()
+            onOverlayReady?.invoke()
         }
     }
 

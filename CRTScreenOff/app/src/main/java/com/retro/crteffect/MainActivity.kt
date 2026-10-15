@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.RenderEffect
+import android.graphics.RuntimeShader
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -20,10 +22,13 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -31,24 +36,81 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlin.random.Random
+import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.cos
 
 class MainActivity : ComponentActivity() {
 
+    companion object {
+        internal var hasShownSplash = false
+
+        internal const val DISCHARGE_AGSL = """
+            uniform shader image;
+            uniform float chromaticOffset;
+
+            vec4 main(vec2 fragCoord) {
+                if (chromaticOffset < 0.001) {
+                    return image.eval(fragCoord);
+                }
+                vec4 r = image.eval(fragCoord - vec2(chromaticOffset, 0.0));
+                vec4 g = image.eval(fragCoord);
+                vec4 b = image.eval(fragCoord + vec2(chromaticOffset, 0.0));
+                return vec4(r.r, g.g, b.b, max(max(r.a, g.a), b.a));
+            }
+        """
+    }
+
     private fun isAccessibilityEnabled(): Boolean {
+        if (CrtAccessibilityService.instance != null) return true
+        val enabledServicesSetting = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: ""
+        if (enabledServicesSetting.contains(packageName)) return true
         val am = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
+        val enabledServices = am.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
         return enabledServices.any { it.resolveInfo.serviceInfo.packageName == packageName }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        hasShownSplash = false
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,17 +118,208 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences("crt_prefs", Context.MODE_PRIVATE)
 
         setContent {
-            var showSplash by remember { mutableStateOf(true) }
-            var startCascade by remember { mutableStateOf(false) }
+            var showSplash by rememberSaveable { mutableStateOf(!hasShownSplash) }
+            var startCascade by rememberSaveable { mutableStateOf(hasShownSplash) }
+
+            // Secondary residual flyback discharge after cards cascade in (2 flickers -> 1.0s rest -> delayed long discharge)
+            val dischargeAnim = remember { Animatable(0f) }
+            LaunchedEffect(startCascade) {
+                if (startCascade) {
+                    // Wait for all 6 items to complete their cascade ascent (5 * 95ms + 650ms ≈ 1125ms)
+                    delay(1150L)
+
+                    // ── Pulse 1: Primary High-Voltage Discharge ──
+                    dischargeAnim.animateTo(
+                        targetValue = 1.0f,
+                        animationSpec = tween(38, easing = LinearEasing)
+                    )
+                    dischargeAnim.animateTo(
+                        targetValue = 0.0f,
+                        animationSpec = tween(190, easing = FastOutSlowInEasing)
+                    )
+
+                    // Inter-pulse inductive coil rebound gap
+                    delay(75L)
+
+                    // ── Pulse 2: Resonant Harmonic Echo / Ringback ──
+                    dischargeAnim.animateTo(
+                        targetValue = 0.65f,
+                        animationSpec = tween(32, easing = LinearEasing)
+                    )
+                    dischargeAnim.animateTo(
+                        targetValue = 0.0f,
+                        animationSpec = tween(230, easing = FastOutSlowInEasing)
+                    )
+
+                    // ── Deceptive Calm / Grounding Rest (1.0 second) ──
+                    delay(1000L)
+
+                    // ── Pulse 3: Delayed Deep Capacitive Discharge (Lingering shudder) ──
+                    dischargeAnim.animateTo(
+                        targetValue = 0.90f,
+                        animationSpec = tween(48, easing = LinearEasing)
+                    )
+                    dischargeAnim.animateTo(
+                        targetValue = 0.0f,
+                        animationSpec = tween(440, easing = FastOutSlowInEasing)
+                    )
+                }
+            }
+
+            val dischargeShader = remember {
+                try {
+                    RuntimeShader(DISCHARGE_AGSL)
+                } catch (e: Throwable) {
+                    null
+                }
+            }
+
+            val headerShader = remember {
+                try {
+                    RuntimeShader(DISCHARGE_AGSL)
+                } catch (e: Throwable) {
+                    null
+                }
+            }
+
+            val headerGlitchAnim = remember { Animatable(0f) }
+
+            // Organic randomized chromatic aberration split loop for the fixed header title
             LaunchedEffect(Unit) {
-                delay(1900)
-                startCascade = true
-                delay(100)
-                showSplash = false
+                while (isActive) {
+                    // Quiet dwell time between 2.8s and 5.2s
+                    delay(Random.nextLong(2800L, 5200L))
+
+                    when (Random.nextInt(3)) {
+                        0 -> {
+                            // Twin-pulse convergence twitch: sharp split -> brief rest -> softer echo
+                            headerGlitchAnim.animateTo(0.95f, tween(36, easing = LinearEasing))
+                            headerGlitchAnim.animateTo(0.12f, tween(75, easing = FastOutSlowInEasing))
+                            headerGlitchAnim.animateTo(0.65f, tween(32, easing = LinearEasing))
+                            headerGlitchAnim.animateTo(0f, tween(180, easing = FastOutSlowInEasing))
+                        }
+                        1 -> {
+                            // Analog beam drift & snap: slow horizontal creep, then snaps sharp
+                            headerGlitchAnim.animateTo(0.85f, tween(130, easing = FastOutSlowInEasing))
+                            headerGlitchAnim.animateTo(0f, tween(40, easing = LinearEasing))
+                        }
+                        2 -> {
+                            // Deflection harmonic ripple: 3 rapid micro-flickers
+                            repeat(3) {
+                                headerGlitchAnim.animateTo(0.70f, tween(26, easing = LinearEasing))
+                                headerGlitchAnim.animateTo(0f, tween(45, easing = LinearEasing))
+                                delay(20L)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Capacitive breakdown scanline arc state (subtle random high-voltage traces across the viewport)
+            var activeArcLines by remember { mutableStateOf<List<CapacitorArcLine>>(emptyList()) }
+            val arcAlphaAnim = remember { Animatable(0f) }
+
+            LaunchedEffect(startCascade) {
+                if (!startCascade) return@LaunchedEffect
+                while (isActive) {
+                    // Random pause between 2.2s and 3.8s between discharge events
+                    delay(Random.nextLong(2200L, 3800L))
+
+                    val eventType = Random.nextInt(10)
+                    when {
+                        // 60% chance: Single crisp scanline arc
+                        eventType < 6 -> {
+                            val yRatio = Random.nextFloat() * 0.88f + 0.06f
+                            val isFullWidth = Random.nextFloat() < 0.35f
+                            val startX = if (isFullWidth) 0f else (Random.nextFloat() * 0.25f)
+                            val endX = if (isFullWidth) 1f else (startX + Random.nextFloat() * 0.55f + 0.35f).coerceAtMost(1f)
+                            val thickness = Random.nextFloat() * 0.8f + 1.2f
+
+                            activeArcLines = listOf(
+                                CapacitorArcLine(
+                                    yRatio = yRatio,
+                                    startXRatio = startX,
+                                    endXRatio = endX,
+                                    strokeWidthDp = thickness
+                                )
+                            )
+                            arcAlphaAnim.snapTo(Random.nextFloat() * 0.25f + 0.70f)
+                            arcAlphaAnim.animateTo(0f, tween(Random.nextInt(65, 115), easing = FastOutSlowInEasing))
+                            activeArcLines = emptyList()
+                        }
+                        // 30% chance: Double-arc breakdown (first line strikes, immediate second line echo)
+                        eventType < 9 -> {
+                            // Strike 1
+                            val y1 = Random.nextFloat() * 0.88f + 0.06f
+                            val startX1 = if (Random.nextBoolean()) 0f else Random.nextFloat() * 0.20f
+                            val endX1 = if (Random.nextBoolean()) 1f else (startX1 + 0.40f + Random.nextFloat() * 0.45f).coerceAtMost(1f)
+
+                            activeArcLines = listOf(
+                                CapacitorArcLine(
+                                    yRatio = y1,
+                                    startXRatio = startX1,
+                                    endXRatio = endX1,
+                                    strokeWidthDp = 1.4f
+                                )
+                            )
+                            arcAlphaAnim.snapTo(0.85f)
+                            arcAlphaAnim.animateTo(0f, tween(75, easing = LinearEasing))
+
+                            // Micro pause between sparks (30ms - 65ms)
+                            delay(Random.nextLong(30L, 65L))
+
+                            // Strike 2 (either nearby harmonic or anywhere on screen)
+                            val y2 = if (Random.nextBoolean()) {
+                                (y1 + (Random.nextFloat() * 0.06f - 0.03f)).coerceIn(0.06f, 0.94f)
+                            } else {
+                                Random.nextFloat() * 0.88f + 0.06f
+                            }
+                            val startX2 = if (Random.nextBoolean()) 0f else Random.nextFloat() * 0.30f
+                            val endX2 = if (Random.nextBoolean()) 1f else (startX2 + 0.45f + Random.nextFloat() * 0.40f).coerceAtMost(1f)
+
+                            activeArcLines = listOf(
+                                CapacitorArcLine(
+                                    yRatio = y2,
+                                    startXRatio = startX2,
+                                    endXRatio = endX2,
+                                    strokeWidthDp = 1.8f
+                                )
+                            )
+                            arcAlphaAnim.snapTo(0.95f)
+                            arcAlphaAnim.animateTo(0f, tween(110, easing = FastOutSlowInEasing))
+                            activeArcLines = emptyList()
+                        }
+                        // 10% chance: Twin split lines (two parallel horizontal arcs simultaneously)
+                        else -> {
+                            val baseCenterY = Random.nextFloat() * 0.80f + 0.10f
+                            val lineA = CapacitorArcLine(
+                                yRatio = baseCenterY,
+                                startXRatio = 0f,
+                                endXRatio = 1f,
+                                strokeWidthDp = 1.3f
+                            )
+                            val lineB = CapacitorArcLine(
+                                yRatio = (baseCenterY + Random.nextFloat() * 0.025f + 0.008f).coerceAtMost(0.95f),
+                                startXRatio = Random.nextFloat() * 0.15f,
+                                endXRatio = (0.75f + Random.nextFloat() * 0.25f).coerceAtMost(1f),
+                                strokeWidthDp = 1.1f
+                            )
+                            activeArcLines = listOf(lineA, lineB)
+                            arcAlphaAnim.snapTo(0.75f)
+                            arcAlphaAnim.animateTo(0f, tween(90, easing = FastOutSlowInEasing))
+                            activeArcLines = emptyList()
+                        }
+                    }
+                }
             }
 
             val scrollState = rememberScrollState()
-            var speedMs by remember { mutableFloatStateOf(prefs.getInt("anim_speed", 500).toFloat()) }
+            var headerHeightPx by remember { mutableIntStateOf(0) }
+            var footerHeightPx by remember { mutableIntStateOf(0) }
+            var enableCrtAnimation by remember {
+                mutableStateOf(prefs.getBoolean("enable_crt_animation", true))
+            }
+            var speedMs by remember { mutableFloatStateOf(prefs.getInt("anim_speed", 500).toFloat().coerceIn(300f, 1000f)) }
             var selectedStyle by remember {
                 mutableStateOf(
                     prefs.getString("anim_style", CrtStyle.CLASSIC_HORIZONTAL.name) ?: CrtStyle.CLASSIC_HORIZONTAL.name
@@ -79,7 +332,7 @@ class MainActivity : ComponentActivity() {
                 mutableFloatStateOf(prefs.getFloat("flash_intensity", 1.0f))
             }
             var afterglowDurationMs by remember {
-                mutableFloatStateOf(prefs.getInt("afterglow_duration", 1000).toFloat())
+                mutableFloatStateOf(prefs.getInt("afterglow_duration", 800).toFloat())
             }
             var selectedResistance by remember {
                 mutableStateOf(
@@ -92,9 +345,42 @@ class MainActivity : ComponentActivity() {
             var enableAnamorphicFlare by remember {
                 mutableStateOf(prefs.getBoolean("enable_anamorphic_flare", true))
             }
+            var speedOverdriveMs by remember {
+                mutableFloatStateOf(prefs.getInt("anim_speed_overdrive", 500).toFloat().coerceIn(100f, 1000f))
+            }
 
             var hasOverlay by remember { mutableStateOf(Settings.canDrawOverlays(this@MainActivity)) }
             var isA11yEnabled by remember { mutableStateOf(isAccessibilityEnabled()) }
+            var expandedCard1 by remember { mutableStateOf(!isA11yEnabled) }
+
+            // Immediate resume detection: updates permission states when returning from system settings
+            val lifecycleOwner = LocalLifecycleOwner.current
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        isA11yEnabled = isAccessibilityEnabled()
+                        hasOverlay = Settings.canDrawOverlays(this@MainActivity)
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
+
+            // Continuous polling fallback while awaiting first-time activation
+            LaunchedEffect(isA11yEnabled) {
+                if (!isA11yEnabled) {
+                    while (!isA11yEnabled && isActive) {
+                        delay(600L)
+                        if (isAccessibilityEnabled()) {
+                            isA11yEnabled = true
+                            hasOverlay = Settings.canDrawOverlays(this@MainActivity)
+                            break
+                        }
+                    }
+                }
+            }
 
             // Card 2 master collapsible state & 3 sub-card states (initially compact/collapsed)
             var expandedCard2 by remember { mutableStateOf(false) }
@@ -103,18 +389,95 @@ class MainActivity : ComponentActivity() {
             var expandedOptionC by remember { mutableStateOf(false) }
 
             var showAboutPage by remember { mutableStateOf(false) }
+            var showAcknowledgmentPage by remember { mutableStateOf(false) }
             var menuExpanded by remember { mutableStateOf(false) }
 
-            // Intercept system back gestures when About page is open
-            BackHandler(enabled = showAboutPage) {
-                showAboutPage = false
+            // Geeky Capacitor Discharge Advisory Banner state
+            val hideAdvisoryPref = prefs.getBoolean("hide_anode_bleed_notice", false)
+            var showAdvisoryBanner by remember { mutableStateOf(false) }
+            var dontShowAdvisoryAgain by remember { mutableStateOf(prefs.getBoolean("hide_anode_bleed_notice", false)) }
+
+            // Slide down banner from behind the header after staggered cards settle
+            LaunchedEffect(startCascade) {
+                if (startCascade && !hideAdvisoryPref) {
+                    delay(900L)
+                    showAdvisoryBanner = true
+                }
+            }
+
+            var lastBackPressTime by remember { mutableLongStateOf(0L) }
+            val coroutineScope = rememberCoroutineScope()
+            var exitPromptJob by remember { mutableStateOf<Job?>(null) }
+            var showExitPrompt by remember { mutableStateOf(false) }
+            var isExiting by remember { mutableStateOf(false) }
+
+            // Reset exit prompt if user navigates away or backgrounds app
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_STOP) {
+                        showExitPrompt = false
+                        exitPromptJob?.cancel()
+                        isExiting = false
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
+
+            // System back navigation handler: dismisses subpages or moves task to back on double-tap with animated header panel
+            BackHandler(enabled = true) {
+                if (showSplash || isExiting) {
+                    return@BackHandler
+                }
+                if (showAcknowledgmentPage) {
+                    showAcknowledgmentPage = false
+                } else if (showAboutPage) {
+                    showAboutPage = false
+                } else if (menuExpanded) {
+                    menuExpanded = false
+                } else {
+                    val currentTime = System.currentTimeMillis()
+                    if (showExitPrompt && (currentTime - lastBackPressTime < 3000L)) {
+                        // Double tap: immediately slide up & hide the exit card before exiting so cards return to rest positions
+                        isExiting = true
+                        showExitPrompt = false
+                        exitPromptJob?.cancel()
+                        coroutineScope.launch {
+                            delay(280L) // Settle slide-up animation so cards return to rest positions
+                            this@MainActivity.moveTaskToBack(true)
+                            isExiting = false
+                        }
+                    } else {
+                        // First tap: trigger the elegant slide-down exit panel
+                        lastBackPressTime = currentTime
+                        showExitPrompt = true
+                        if (scrollState.value > 0) {
+                            coroutineScope.launch {
+                                scrollState.animateScrollTo(0)
+                            }
+                        }
+                        exitPromptJob?.cancel()
+                        exitPromptJob = coroutineScope.launch {
+                            delay(3000L) // Sits for a brief 3 seconds
+                            showExitPrompt = false // Slides back up elegantly
+                        }
+                    }
+                }
             }
 
             // Re-check permissions when returning to activity
             DisposableEffect(Unit) {
                 val callback = {
                     hasOverlay = Settings.canDrawOverlays(this@MainActivity)
-                    isA11yEnabled = isAccessibilityEnabled()
+                    val a11y = isAccessibilityEnabled()
+                    if (a11y != isA11yEnabled) {
+                        isA11yEnabled = a11y
+                        if (a11y) {
+                            expandedCard1 = false // Auto-collapse once granted
+                        }
+                    }
                 }
                 callback()
                 onDispose { }
@@ -134,168 +497,265 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
-                        Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .statusBarsPadding()
-                            .navigationBarsPadding()
-                            .padding(top = 16.dp, start = 20.dp, end = 20.dp, bottom = 24.dp)
-                            .verticalScroll(scrollState),
-                        horizontalAlignment = Alignment.Start
-                    ) {
-                        CascadingEntrance(index = 0, visible = startCascade) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                    Text(
-                                        text = "CRT Screen-Off Engine",
-                                        fontSize = 24.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        lineHeight = 28.sp,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(bottom = 2.dp)
-                                    )
-                                    Text(
-                                        text = "Authentic Xposed electron-beam animation without root.",
-                                        fontSize = 12.5.sp,
-                                        lineHeight = 15.sp,
-                                        color = Color(0xFF94A3B8),
-                                        modifier = Modifier.padding(bottom = 14.dp)
-                                    )
-                                }
+                        val dischargeValue = dischargeAnim.value
+                        val densityObj = LocalDensity.current
+                        val density = densityObj.density
+                        val headerHeightDp = with(densityObj) { headerHeightPx.toDp() }
+                        val footerHeightDp = with(densityObj) { footerHeightPx.toDp() }
 
-                                // 3-dot overflow menu
-                                Box {
-                                    IconButton(
-                                        onClick = { menuExpanded = true },
-                                        modifier = Modifier.size(38.dp)
-                                    ) {
-                                        MoreVertIcon(
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-                                    DropdownMenu(
-                                        expanded = menuExpanded,
-                                        onDismissRequest = { menuExpanded = false },
-                                        modifier = Modifier
-                                            .background(Color(0xFF222222))
-                                            .border(1.dp, Color(0xFF383838), RoundedCornerShape(8.dp))
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    "About",
-                                                    color = Color.White,
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Medium
-                                                )
-                                            },
-                                            leadingIcon = {
-                                                InfoIcon(
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            },
-                                            onClick = {
-                                                menuExpanded = false
-                                                showAboutPage = true
-                                            }
-                                        )
-                                    }
+                        val dischargeShakeX = if (dischargeValue > 0.001f) {
+                            sin(dischargeValue * 28f) * 7f * dischargeValue * density
+                        } else 0f
+                        val dischargeShakeY = if (dischargeValue > 0.001f) {
+                            cos(dischargeValue * 36f) * 3f * dischargeValue * density
+                        } else 0f
+
+                        val dischargeRenderEffect = remember(dischargeValue) {
+                            if (dischargeValue > 0.001f && dischargeShader != null) {
+                                try {
+                                    dischargeShader.setFloatUniform("chromaticOffset", dischargeValue * 14f * density)
+                                    RenderEffect.createRuntimeShaderEffect(dischargeShader, "image").asComposeRenderEffect()
+                                } catch (e: Throwable) {
+                                    null
                                 }
+                            } else {
+                                null
                             }
                         }
 
-                        // ── Card 1: System Permissions ──
-                        CascadingEntrance(index = 1, visible = startCascade) {
+                        // Header title chromatic split math & RenderEffect
+                        val glitchVal = headerGlitchAnim.value
+                        val headerChromaticOffset = glitchVal * 10f * density
+                        val headerShakeX = if (glitchVal > 0.01f) sin(glitchVal * 20f) * 1.6f * density * glitchVal else 0f
+                        val headerRenderEffect = remember(glitchVal) {
+                            if (glitchVal > 0.005f && headerShader != null) {
+                                try {
+                                    headerShader.setFloatUniform("chromaticOffset", headerChromaticOffset)
+                                    RenderEffect.createRuntimeShaderEffect(headerShader, "image").asComposeRenderEffect()
+                                } catch (e: Throwable) {
+                                    null
+                                }
+                            } else {
+                                null
+                            }
+                        }
+
+                        // Dashboard container: unified deflection coil shake, chromatic RenderEffect & subtle touch static
+                        CrtTouchStaticContainer(
+                            subtleMode = true,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    translationX = dischargeShakeX
+                                    translationY = dischargeShakeY
+                                    renderEffect = dischargeRenderEffect
+                                }
+                        ) {
+                            val exitCardClearancePx = with(densityObj) { 80.dp.roundToPx() }
+
+                            // ── 1. Scrollable Dashboard Content (Cards & Test Button scroll behind header) ──
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .statusBarsPadding()
+                                    .navigationBarsPadding()
+                                    .padding(bottom = 24.dp)
+                                    .verticalScroll(scrollState),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                // Spacer clearing the fixed header + 39.dp clearance gap (14.dp base + 25.dp downward offset)
+                                Spacer(modifier = Modifier.height(headerHeightDp.coerceAtLeast(75.dp) + 39.dp))
+
+                                // ── Dashboard Cards Container with 20.dp horizontal padding ──
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 20.dp, end = 20.dp),
+                                    horizontalAlignment = Alignment.Start
+                                ) {
+                                    // ── Slide-Down Exit Prompt Card (Matches dashboard cards width & 16.dp corner radius) ──
+                                    AnimatedVisibility(
+                                        visible = showExitPrompt,
+                                        enter = slideInVertically(
+                                            initialOffsetY = { -it - exitCardClearancePx },
+                                            animationSpec = tween(450, easing = CubicBezierEasing(0.08f, 0.85f, 0.15f, 1.0f))
+                                        ) + expandVertically(
+                                            expandFrom = Alignment.Top,
+                                            animationSpec = tween(450, easing = CubicBezierEasing(0.08f, 0.85f, 0.15f, 1.0f))
+                                        ),
+                                        exit = slideOutVertically(
+                                            targetOffsetY = { -it - exitCardClearancePx },
+                                            animationSpec = tween(280, easing = CubicBezierEasing(0.35f, 0.0f, 0.15f, 1.0f))
+                                        ) + shrinkVertically(
+                                            shrinkTowards = Alignment.Top,
+                                            animationSpec = tween(280, easing = CubicBezierEasing(0.35f, 0.0f, 0.15f, 1.0f))
+                                        )
+                                    ) {
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(bottom = 14.dp),
+                                            shape = RoundedCornerShape(16.dp),
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = Color(0xFFAD4647)
+                                            ),
+                                            border = BorderStroke(1.dp, Color(0xFFC25253))
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 14.dp, horizontal = 16.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center
+                                                ) {
+                                                    LogoutIcon(
+                                                        tint = Color(0xFFFFFFFF),
+                                                        rotation = 180f,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Text(
+                                                        text = "Press back again to exit",
+                                                        color = Color(0xFFFFFFFF),
+                                                        fontSize = 18.sp,
+                                                        lineHeight = 22.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        textAlign = TextAlign.Center,
+                                                        letterSpacing = 0.3.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // ── Card 1: System Permissions ──
+                                    CascadingEntrance(index = 1, visible = startCascade) {
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 14.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isA11yEnabled) Color(0xFF143828) else MaterialTheme.colorScheme.surface
-                            ),
-                            border = if (isA11yEnabled) BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.7f)) else null
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "1. Required System Access",
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 14.5.sp,
-                                        lineHeight = 17.sp,
-                                        color = if (isA11yEnabled) Color(0xFF34D399) else Color.White
-                                    )
-                                    if (isA11yEnabled) {
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isA11yEnabled && expandedCard1) Color(0xFF192520)
+                                    else if (isA11yEnabled) Color(0xFF141D18)
+                                    else MaterialTheme.colorScheme.surface
+                                ),
+                                border = if (isA11yEnabled) BorderStroke(
+                                    1.dp,
+                                    Color(0xFF3B7A60).copy(alpha = if (expandedCard1) 0.5f else 0.3f)
+                                ) else null
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    // Header: Clickable to toggle Card 1 expansion
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { expandedCard1 = !expandedCard1 }
+                                            .padding(14.dp)
+                                        ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "Required System Access",
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 18.sp,
+                                                lineHeight = 22.sp,
+                                                color = if (isA11yEnabled && expandedCard1) Color(0xFF86BF9E) else Color.White,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            ChevronIcon(
+                                                isExpanded = expandedCard1,
+                                                tint = if (isA11yEnabled) Color(0xFF5A9E7F) else Color(0xFF94A3B8),
+                                                modifier = Modifier.padding(start = 6.dp)
+                                            )
+                                        }
+
                                         Text(
-                                            "✓",
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.5.sp,
-                                            color = Color(0xFF10B981)
+                                            if (isA11yEnabled && !expandedCard1)
+                                                "All required permissions active ✓ (Tap to manage)"
+                                            else
+                                                "Enable the Accessibility Service to silently capture your active screen and execute the screen lock.",
+                                            fontSize = 12.sp,
+                                            lineHeight = 15.sp,
+                                            color = if (isA11yEnabled && !expandedCard1) Color(0xFF87BE9F)
+                                            else if (isA11yEnabled) Color(0xFF9CB8AA)
+                                            else Color(0xFF94A3B8),
+                                            modifier = Modifier.padding(top = 2.dp)
                                         )
                                     }
-                                }
-                                Text(
-                                    "Enable the Accessibility Service to silently capture your active screen and execute the screen lock.",
-                                    fontSize = 12.sp,
-                                    lineHeight = 15.sp,
-                                    color = if (isA11yEnabled) Color(0xFFA7F3D0) else Color(0xFF94A3B8),
-                                    modifier = Modifier.padding(top = 1.dp, bottom = 10.dp)
-                                )
 
-                                // Accessibility Button
-                                Button(
-                                    onClick = {
-                                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (isA11yEnabled) Color(0xFF10B981) else MaterialTheme.colorScheme.primary
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        if (isA11yEnabled) "Accessibility Service: Active ✓" else "Enable Accessibility Service",
-                                        color = if (isA11yEnabled) Color.White else Color.Black,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
+                                    // Collapsible Buttons Content
+                                    AnimatedVisibility(
+                                        visible = expandedCard1,
+                                        enter = expandVertically(
+                                            expandFrom = Alignment.Top,
+                                            animationSpec = tween(220, easing = FastOutSlowInEasing)
+                                        ) + fadeIn(animationSpec = tween(180)),
+                                        exit = shrinkVertically(
+                                            shrinkTowards = Alignment.Top,
+                                            animationSpec = tween(200, easing = FastOutSlowInEasing)
+                                        ) + fadeOut(animationSpec = tween(150))
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(start = 14.dp, end = 14.dp, bottom = 14.dp)
+                                        ) {
+                                            // Accessibility Button
+                                            Button(
+                                                onClick = {
+                                                    startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (isA11yEnabled) Color(0xFF26543F) else MaterialTheme.colorScheme.primary
+                                                ),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    if (isA11yEnabled) "Accessibility Service: Active ✓" else "Enable Accessibility Service",
+                                                    color = if (isA11yEnabled) Color(0xFFE2E8F0) else Color.Black,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
 
-                                Spacer(modifier = Modifier.height(10.dp))
+                                            Spacer(modifier = Modifier.height(10.dp))
 
-                                // Overlay Button with responsive feedback
-                                OutlinedButton(
-                                    onClick = {
-                                        if (hasOverlay) {
-                                            Toast.makeText(
-                                                this@MainActivity,
-                                                "Overlay permission is already granted ✓",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
+                                            // Overlay Button with responsive feedback
+                                            OutlinedButton(
+                                                onClick = {
+                                                    if (hasOverlay) {
+                                                        Toast.makeText(
+                                                            this@MainActivity,
+                                                            "Overlay permission is already granted ✓",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }
+                                                    startActivity(
+                                                        Intent(
+                                                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                                            Uri.parse("package:$packageName")
+                                                        )
+                                                    )
+                                                },
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text(
+                                                    if (hasOverlay) "Overlay Permission: Granted ✓" else "Grant Overlay Permission",
+                                                    color = if (hasOverlay) Color(0xFF5A9E7F) else MaterialTheme.colorScheme.primary
+                                                )
+                                            }
                                         }
-                                        startActivity(
-                                            Intent(
-                                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                                Uri.parse("package:$packageName")
-                                            )
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        if (hasOverlay) "Overlay Permission: Granted ✓" else "Grant Overlay Permission",
-                                        color = if (hasOverlay) Color(0xFF10B981) else MaterialTheme.colorScheme.primary
-                                    )
+                                    }
                                 }
                             }
-                        }
                     }
 
                     // ── Card 2: Collapsible Gesture Setup Methods ──
@@ -322,10 +782,10 @@ class MainActivity : ComponentActivity() {
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            "2. Gesture Trigger Setup",
+                                            "Screen-Off Trigger Setup",
                                             fontWeight = FontWeight.SemiBold,
-                                            fontSize = 14.5.sp,
-                                            lineHeight = 17.sp,
+                                            fontSize = 18.sp,
+                                            lineHeight = 22.sp,
                                             color = if (expandedCard2) MaterialTheme.colorScheme.primary else Color.White,
                                             modifier = Modifier.weight(1f)
                                         )
@@ -338,7 +798,7 @@ class MainActivity : ComponentActivity() {
 
                                     // Subtitle directly beneath the first line
                                     Text(
-                                        "Tap an option below to view step-by-step setup instructions:",
+                                        "Tap an option below for gesture, key, & automation setups:",
                                         fontSize = 12.sp,
                                         lineHeight = 15.sp,
                                         color = Color(0xFF94A3B8),
@@ -366,61 +826,52 @@ class MainActivity : ComponentActivity() {
                                         HorizontalDivider(color = Color(0xFF383838), thickness = 0.8.dp)
                                         Spacer(modifier = Modifier.height(10.dp))
 
-                                        // ── Option A: Universal "Open App" Setup ──
+                                        // ── Option A: Samsung Exclusive (One UI & Good Lock) ──
                                         SetupOptionCard(
-                                            title = "Option A: Universal \"Open App\" Setup",
-                                            subtitle = "Samsung Good Lock, Pixel Quick Tap, Moto, Xiaomi",
+                                            title = "Option A: Samsung Exclusive",
+                                            subtitle = "One Hand Operation + (Gestures) & RegiStar (Side Key)",
                                             isExpanded = expandedOptionA,
                                             onToggle = { expandedOptionA = !expandedOptionA }
                                         ) {
                                             Text(
-                                                "Works with any gesture feature supporting app launches:\n" +
-                                                        "• Samsung Good Lock: Select 'Start application' -> 'CRT Lock'\n" +
-                                                        "• Google Pixel: Settings -> System -> Gestures -> Quick Tap -> Open app -> 'CRT Lock'\n" +
-                                                        "• Motorola: Moto app -> Gestures -> Double tap back -> 'CRT Lock'\n" +
-                                                        "• Xiaomi/HyperOS: Additional settings -> Gesture shortcuts -> Back tap -> 'CRT Lock'",
+                                                "• Good Lock (One Hand Operation +) [Recommended Gesture]:\n" +
+                                                        "  1. Open One Hand Operation +\n" +
+                                                        "  2. Select your gesture handle (Left or Right) & swipe direction\n" +
+                                                        "  3. Tap action and choose 'Start application' (Do NOT use 'Home screen shortcut' to prevent desktop redraws)\n" +
+                                                        "  4. Select 'CRT Lock' from the application list\n\n" +
+                                                        "• Good Lock (RegiStar) [Physical Side Key / Back-Tap]:\n" +
+                                                        "  1. Open Good Lock -> RegiStar\n" +
+                                                        "  2. Select 'Side-Key press and hold action' or 'Back-Tap action'\n" +
+                                                        "  3. Choose 'Open app' -> Select 'CRT Lock'",
                                                 fontSize = 11.5.sp,
                                                 color = Color(0xFFCBD5E1),
-                                                lineHeight = 15.5.sp
+                                                lineHeight = 16.sp
                                             )
                                         }
 
                                         Spacer(modifier = Modifier.height(6.dp))
 
-                                        // ── Option B: Samsung One Hand Operation + (Shortcuts) ──
+                                        // ── Option B: Non-Samsung Devices ──
                                         SetupOptionCard(
-                                            title = "Option B: Samsung One Hand Operation +",
-                                            subtitle = "Mapped via Home screen shortcuts",
+                                            title = "Option B: Non-Samsung Devices",
+                                            subtitle = "Edge Gestures, Pixel Quick Tap, Motorola, Xiaomi",
                                             isExpanded = expandedOptionB,
                                             onToggle = { expandedOptionB = !expandedOptionB }
                                         ) {
                                             Text(
-                                                "• Open Good Lock -> One Hand Operation +\n" +
-                                                        "• Choose your handle and swipe direction\n" +
-                                                        "• Select: 'Home screen shortcuts'\n" +
-                                                        "• Choose: 'CRT Screen-Off : CRT Lock'",
+                                                "• Edge Gestures (Pixel, OnePlus, Nothing, Sony, Moto):\n" +
+                                                        "  Gives the identical edge-swipe gesture experience as Good Lock:\n" +
+                                                        "  1. Install Edge Gestures or Fluid Navigation Gestures (FNG)\n" +
+                                                        "  2. Add an edge handle and set swipe action -> Launch app -> 'CRT Lock'\n\n" +
+                                                        "• Google Pixel (Quick Tap):\n" +
+                                                        "  Settings -> System -> Gestures -> Quick Tap -> Open app -> 'CRT Lock'\n\n" +
+                                                        "• Motorola (Quick Launch):\n" +
+                                                        "  Moto app -> Gestures -> Double tap back -> Launch app -> 'CRT Lock'\n\n" +
+                                                        "• Xiaomi / Redmi / POCO (HyperOS / MIUI):\n" +
+                                                        "  Settings -> Additional settings -> Gesture shortcuts -> Back tap -> Open app -> 'CRT Lock'",
                                                 fontSize = 11.5.sp,
                                                 color = Color(0xFFCBD5E1),
-                                                lineHeight = 15.5.sp
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.height(6.dp))
-
-                                        // ── Option C: Non-Samsung Devices (Edge Gestures / FNG) ──
-                                        SetupOptionCard(
-                                            title = "Option C: Non-Samsung Devices",
-                                            subtitle = "Edge Gestures & Fluid Navigation Gestures",
-                                            isExpanded = expandedOptionC,
-                                            onToggle = { expandedOptionC = !expandedOptionC }
-                                        ) {
-                                            Text(
-                                                "To get the exact same Good Lock edge-swipe experience on Pixel, Motorola, OnePlus, or Xiaomi devices:\n" +
-                                                        "• Install 'Edge Gestures' or 'Fluid Navigation Gestures (FNG)'\n" +
-                                                        "• Set edge swipe action -> Launch app or shortcut -> 'CRT Lock'",
-                                                fontSize = 11.5.sp,
-                                                color = Color(0xFFCBD5E1),
-                                                lineHeight = 15.5.sp,
+                                                lineHeight = 16.sp,
                                                 modifier = Modifier.padding(bottom = 8.dp)
                                             )
 
@@ -440,6 +891,30 @@ class MainActivity : ComponentActivity() {
                                                 Text("View Edge Gestures on Google Play", fontSize = 11.5.sp)
                                             }
                                         }
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        // ── Option C: Universal & Automation Methods ──
+                                        SetupOptionCard(
+                                            title = "Option C: Universal & Automation",
+                                            subtitle = "Hardware Key Remappers, Tasker, MacroDroid",
+                                            isExpanded = expandedOptionC,
+                                            onToggle = { expandedOptionC = !expandedOptionC }
+                                        ) {
+                                            Text(
+                                                "• Hardware Key Remapping (All Android Devices):\n" +
+                                                        "  1. Install Button Mapper or Key Mapper from Google Play\n" +
+                                                        "  2. Choose a hardware key (e.g. Volume long-press or double-press)\n" +
+                                                        "  3. Set action: Launch Application -> 'CRT Lock'\n\n" +
+                                                        "• Automation Broadcast (Zero-UI Background Trigger):\n" +
+                                                        "  Tasker, MacroDroid, or Automate can trigger the CRT effect with zero screen flicker or window overhead:\n" +
+                                                        "  • Action: com.retro.crteffect.TRIGGER_LOCK\n" +
+                                                        "  • Package: com.retro.crteffect",
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFFCBD5E1),
+                                                lineHeight = 16.sp
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -456,67 +931,120 @@ class MainActivity : ComponentActivity() {
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
-                                Text(
-                                    "3. Animation Style & Speed",
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 14.5.sp,
-                                    lineHeight = 17.sp,
-                                    color = Color.White
-                                )
-
-                                Text(
-                                    "Direction: ${if (selectedStyle == CrtStyle.CLASSIC_HORIZONTAL.name) "Horizontal (Classic)" else "Vertical"}",
-                                    fontSize = 12.sp,
-                                    lineHeight = 15.sp,
-                                    color = Color(0xFF94A3B8),
-                                    modifier = Modifier.padding(top = 6.dp, bottom = 4.dp)
-                                )
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    FilterChip(
-                                        selected = selectedStyle == CrtStyle.CLASSIC_HORIZONTAL.name,
-                                        onClick = {
-                                            selectedStyle = CrtStyle.CLASSIC_HORIZONTAL.name
-                                            prefs.edit().putString("anim_style", selectedStyle).apply()
-                                        },
-                                        label = { Text("Horizontal") },
-                                        modifier = Modifier.padding(end = 8.dp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        "Cyanogen Inspired",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 18.sp,
+                                        lineHeight = 22.sp,
+                                        color = if (enableCrtAnimation) MaterialTheme.colorScheme.primary else Color.White,
+                                        modifier = Modifier.weight(1f).padding(end = 8.dp)
                                     )
-                                    FilterChip(
-                                        selected = selectedStyle == CrtStyle.CLASSIC_VERTICAL.name,
-                                        onClick = {
-                                            selectedStyle = CrtStyle.CLASSIC_VERTICAL.name
-                                            prefs.edit().putString("anim_style", selectedStyle).apply()
-                                        },
-                                        label = { Text("Vertical") }
+                                    Switch(
+                                        checked = enableCrtAnimation,
+                                        onCheckedChange = {
+                                            enableCrtAnimation = it
+                                            prefs.edit().putBoolean("enable_crt_animation", it).apply()
+                                        }
                                     )
                                 }
-
-                                Spacer(modifier = Modifier.height(10.dp))
-
                                 Text(
-                                    "Animation Speed: ${speedMs.toInt()} ms",
-                                    fontSize = 12.sp,
-                                    lineHeight = 15.sp,
-                                    color = Color(0xFF94A3B8)
+                                    if (enableCrtAnimation)
+                                        "CM7/CM9 classic CRT collapse with directional snap & authentic timing."
+                                    else
+                                        "CRT screen-off animation is disabled. Screen will sleep with native display lock.",
+                                    fontSize = 11.sp,
+                                    lineHeight = 13.5.sp,
+                                    color = Color(0xFF94A3B8),
+                                    modifier = Modifier.padding(top = 1.dp, bottom = 4.dp)
                                 )
-                                Slider(
-                                    value = speedMs,
-                                    onValueChange = { speedMs = it },
-                                    onValueChangeFinished = {
-                                        prefs.edit().putInt("anim_speed", speedMs.toInt()).apply()
-                                    },
-                                    valueRange = 150f..800f,
-                                    steps = 12
-                                )
+
+                                Column(modifier = Modifier.alpha(if (enableCrtAnimation) 1f else 0.38f)) {
+                                    Text(
+                                        "Direction: ${if (selectedStyle == CrtStyle.CLASSIC_HORIZONTAL.name) "Horizontal (Classic)" else "Vertical"}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        lineHeight = 18.sp,
+                                        color = Color(0xFF94A3B8),
+                                        modifier = Modifier.padding(top = 6.dp, bottom = 4.dp)
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        FilterChip(
+                                            selected = selectedStyle == CrtStyle.CLASSIC_HORIZONTAL.name,
+                                            onClick = {
+                                                if (enableCrtAnimation) {
+                                                    selectedStyle = CrtStyle.CLASSIC_HORIZONTAL.name
+                                                    prefs.edit().putString("anim_style", selectedStyle).apply()
+                                                }
+                                            },
+                                            label = {
+                                                Text(
+                                                    "Horizontal",
+                                                    fontSize = 16.sp,
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        FilterChip(
+                                            selected = selectedStyle == CrtStyle.CLASSIC_VERTICAL.name,
+                                            onClick = {
+                                                if (enableCrtAnimation) {
+                                                    selectedStyle = CrtStyle.CLASSIC_VERTICAL.name
+                                                    prefs.edit().putString("anim_style", selectedStyle).apply()
+                                                }
+                                            },
+                                            label = {
+                                                Text(
+                                                    "Vertical",
+                                                    fontSize = 16.sp,
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    textAlign = TextAlign.Center
+                                                )
+                                            },
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Text(
+                                        "Animation Speed: ${speedMs.toInt()} ms",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        lineHeight = 18.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                    Slider(
+                                        value = speedMs,
+                                        enabled = enableCrtAnimation,
+                                        onValueChange = { speedMs = it },
+                                        onValueChangeFinished = {
+                                            prefs.edit().putInt("anim_speed", speedMs.toInt()).apply()
+                                        },
+                                        valueRange = 300f..1000f,
+                                        steps = 6
+                                    )
+                                }
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
                                 // Restore to Default button for Card 3
                                 Button(
                                     onClick = {
+                                        enableCrtAnimation = true
                                         speedMs = 500f
                                         selectedStyle = CrtStyle.CLASSIC_HORIZONTAL.name
                                         prefs.edit()
+                                            .putBoolean("enable_crt_animation", true)
                                             .putInt("anim_speed", 500)
                                             .putString("anim_style", CrtStyle.CLASSIC_HORIZONTAL.name)
                                             .apply()
@@ -530,11 +1058,11 @@ class MainActivity : ComponentActivity() {
                                     shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(42.dp)
+                                        .height(44.dp)
                                 ) {
                                     Text(
                                         "Restore to Default",
-                                        fontSize = 12.5.sp,
+                                        fontSize = 16.sp,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
@@ -560,22 +1088,14 @@ class MainActivity : ComponentActivity() {
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                        Text(
-                                            "4. Enhanced Phosphor Overdrive",
-                                            fontWeight = FontWeight.SemiBold,
-                                            fontSize = 14.5.sp,
-                                            lineHeight = 17.sp,
-                                            color = if (enableEnhancedOverdrive) MaterialTheme.colorScheme.primary else Color.White
-                                        )
-                                        Text(
-                                            "RGB chromatic aberration, ease-in resistance & cathode afterglow.",
-                                            fontSize = 11.sp,
-                                            lineHeight = 13.5.sp,
-                                            color = Color(0xFF94A3B8),
-                                            modifier = Modifier.padding(top = 1.dp)
-                                        )
-                                    }
+                                    Text(
+                                        "Enhanced Phosphor Overdrive",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 18.sp,
+                                        lineHeight = 22.sp,
+                                        color = if (enableEnhancedOverdrive) MaterialTheme.colorScheme.primary else Color.White,
+                                        modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                    )
                                     Switch(
                                         checked = enableEnhancedOverdrive,
                                         onCheckedChange = {
@@ -584,6 +1104,13 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                 }
+                                Text(
+                                    "RGB chromatic aberration, ease-in resistance & cathode afterglow.",
+                                    fontSize = 11.sp,
+                                    lineHeight = 13.5.sp,
+                                    color = Color(0xFF94A3B8),
+                                    modifier = Modifier.padding(top = 1.dp)
+                                )
 
                                 if (!enableEnhancedOverdrive) {
                                     Spacer(modifier = Modifier.height(8.dp))
@@ -595,13 +1122,13 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Column(modifier = Modifier.padding(10.dp)) {
                                             Text(
-                                                "Authentic CyanogenMod Engine Active",
+                                                "CyanogenMod Retro CRT Engine Active",
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 12.sp,
                                                 color = Color(0xFF94A3B8)
                                             )
                                             Text(
-                                                "Original quadratic timing, exaggerated RGB channel split, crescendo phosphor flare, and radiant beam snap.",
+                                                "CM7/CM9 ElectronBeam inspired: dynamic vertical squish, true-color prism split, delayed crescendo flare & clean horizontal zip shut.",
                                                 fontSize = 11.sp,
                                                 lineHeight = 13.sp,
                                                 color = Color(0xFF6B7280),
@@ -610,6 +1137,33 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 } else {
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    // Dedicated Overdrive Animation Speed Slider
+                                    Text(
+                                        "Overdrive Collapse Speed: ${speedOverdriveMs.toInt()} ms",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        lineHeight = 18.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                    Text(
+                                        "Duration of the active multi-line magnetic raster collapse before afterglow.",
+                                        fontSize = 11.sp,
+                                        lineHeight = 13.5.sp,
+                                        color = Color(0xFF6B7280),
+                                        modifier = Modifier.padding(bottom = 2.dp)
+                                    )
+                                    Slider(
+                                        value = speedOverdriveMs,
+                                        onValueChange = { speedOverdriveMs = it },
+                                        onValueChangeFinished = {
+                                            prefs.edit().putInt("anim_speed_overdrive", speedOverdriveMs.toInt()).apply()
+                                        },
+                                        valueRange = 100f..1000f,
+                                        steps = 8
+                                    )
+
                                     Spacer(modifier = Modifier.height(10.dp))
 
                                     // 3 Presets Magnetic Coil Resistance Selector
@@ -621,8 +1175,8 @@ class MainActivity : ComponentActivity() {
 
                                     Text(
                                         "Magnetic Coil Resistance: ${currentResistance.label}",
-                                        fontSize = 12.sp,
-                                        lineHeight = 15.sp,
+                                        fontSize = 14.sp,
+                                        lineHeight = 18.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = Color(0xFFE2E8F0)
                                     )
@@ -669,22 +1223,14 @@ class MainActivity : ComponentActivity() {
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                            Text(
-                                                "Magnetic Linear Stretch (Elastic Tension)",
-                                                fontWeight = FontWeight.Medium,
-                                                fontSize = 12.sp,
-                                                lineHeight = 15.sp,
-                                                color = if (enableMagneticStretch) MaterialTheme.colorScheme.primary else Color.White
-                                            )
-                                            Text(
-                                                "Screen edges cling to the bezels while content pulls vertically into the center equator before snapping loose.",
-                                                fontSize = 10.5.sp,
-                                                lineHeight = 13.sp,
-                                                color = Color(0xFF94A3B8),
-                                                modifier = Modifier.padding(top = 1.dp)
-                                            )
-                                        }
+                                        Text(
+                                            "Magnetic Linear Stretch (Elastic Tension)",
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp,
+                                            lineHeight = 18.sp,
+                                            color = if (enableMagneticStretch) MaterialTheme.colorScheme.primary else Color.White,
+                                            modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                        )
                                         Switch(
                                             checked = enableMagneticStretch,
                                             onCheckedChange = {
@@ -693,8 +1239,18 @@ class MainActivity : ComponentActivity() {
                                             }
                                         )
                                     }
+                                    Text(
+                                        "Screen edges cling to the bezels while content pulls vertically into the center equator before snapping loose.",
+                                        fontSize = 11.sp,
+                                        lineHeight = 13.5.sp,
+                                        color = Color(0xFF94A3B8),
+                                        modifier = Modifier.padding(top = 1.dp)
+                                    )
 
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    // ── Separator 1: Deflection Mechanics → Beam Optics ──
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    HorizontalDivider(color = Color(0xFF475569), thickness = 1.2.dp)
+                                    Spacer(modifier = Modifier.height(10.dp))
 
                                     // Anamorphic Plasma Flare (Cyan & White) Toggle
                                     Row(
@@ -702,22 +1258,14 @@ class MainActivity : ComponentActivity() {
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                            Text(
-                                                "Anamorphic Chromatic Flare (Prism Split)",
-                                                fontWeight = FontWeight.Medium,
-                                                fontSize = 12.sp,
-                                                lineHeight = 15.sp,
-                                                color = if (enableAnamorphicFlare) MaterialTheme.colorScheme.primary else Color.White
-                                            )
-                                            Text(
-                                                "95% incandescent white beam + cyan prism fringe, dynamic center swell & cathode bridge.",
-                                                fontSize = 10.5.sp,
-                                                lineHeight = 13.sp,
-                                                color = Color(0xFF94A3B8),
-                                                modifier = Modifier.padding(top = 1.dp)
-                                            )
-                                        }
+                                        Text(
+                                            "Anamorphic Chromatic Flare (Prism Split)",
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp,
+                                            lineHeight = 18.sp,
+                                            color = if (enableAnamorphicFlare) MaterialTheme.colorScheme.primary else Color.White,
+                                            modifier = Modifier.weight(1f).padding(end = 8.dp)
+                                        )
                                         Switch(
                                             checked = enableAnamorphicFlare,
                                             onCheckedChange = {
@@ -726,6 +1274,13 @@ class MainActivity : ComponentActivity() {
                                             }
                                         )
                                     }
+                                    Text(
+                                        "95% incandescent white beam + cyan prism fringe, dynamic center swell & cathode bridge.",
+                                        fontSize = 11.sp,
+                                        lineHeight = 13.5.sp,
+                                        color = Color(0xFF94A3B8),
+                                        modifier = Modifier.padding(top = 1.dp)
+                                    )
 
                                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -737,10 +1292,11 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         Text(
                                             "Optics: Exaggerated Red/Cyan Vertical Split + Squish Blur + H-Sync Combing",
-                                            fontSize = 10.5.sp,
+                                            fontSize = 12.sp,
+                                            lineHeight = 15.sp,
                                             color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Medium,
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp)
                                         )
                                     }
 
@@ -756,8 +1312,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                     Text(
                                         "Flare & Bloom Overdrive: $intensityTag",
-                                        fontSize = 12.sp,
-                                        lineHeight = 15.sp,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        lineHeight = 18.sp,
                                         color = Color(0xFF94A3B8)
                                     )
                                     Slider(
@@ -770,19 +1327,23 @@ class MainActivity : ComponentActivity() {
                                         steps = 14
                                     )
 
-                                    Spacer(modifier = Modifier.height(6.dp))
+                                    // ── Separator 2: Beam Optics → Cathode Afterglow ──
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    HorizontalDivider(color = Color(0xFF475569), thickness = 1.2.dp)
+                                    Spacer(modifier = Modifier.height(10.dp))
 
                                     // Afterglow Duration Slider
                                     Text(
                                         "Cathode Afterglow Duration: ${afterglowDurationMs.toInt()} ms",
-                                        fontSize = 12.sp,
-                                        lineHeight = 15.sp,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        lineHeight = 18.sp,
                                         color = Color(0xFF94A3B8)
                                     )
                                     Text(
                                         "Independent center dot persistence on pitch-black OLED display.",
-                                        fontSize = 10.5.sp,
-                                        lineHeight = 13.sp,
+                                        fontSize = 11.sp,
+                                        lineHeight = 13.5.sp,
                                         color = Color(0xFF6B7280),
                                         modifier = Modifier.padding(bottom = 2.dp)
                                     )
@@ -797,26 +1358,29 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
 
-                                Spacer(modifier = Modifier.height(10.dp))
+                                // ── Separator 3: CRT Settings → Reset Action ──
+                                Spacer(modifier = Modifier.height(12.dp))
+                                HorizontalDivider(color = Color(0xFF475569), thickness = 1.2.dp)
+                                Spacer(modifier = Modifier.height(12.dp))
 
                                 // Restore to Default button for Card 4
                                 Button(
                                     onClick = {
-                                        enableEnhancedOverdrive = false
+                                        speedOverdriveMs = 500f
                                         selectedResistance = CoilResistance.HEAVY.name
                                         enableMagneticStretch = false
                                         enableAnamorphicFlare = true
                                         flashIntensity = 1.0f
-                                        afterglowDurationMs = 1000f
+                                        afterglowDurationMs = 800f
                                         prefs.edit()
-                                            .putBoolean("enable_enhanced_overdrive", false)
+                                            .putInt("anim_speed_overdrive", 500)
                                             .putString("coil_resistance", CoilResistance.HEAVY.name)
                                             .putBoolean("enable_magnetic_stretch", false)
                                             .putBoolean("enable_anamorphic_flare", true)
                                             .putFloat("flash_intensity", 1.0f)
-                                            .putInt("afterglow_duration", 1000)
+                                            .putInt("afterglow_duration", 800)
                                             .apply()
-                                        Toast.makeText(this@MainActivity, "Card 4 restored to default", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this@MainActivity, "Overdrive settings restored to default", Toast.LENGTH_SHORT).show()
                                     },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = Color(0xFF1E1E1E),
@@ -826,79 +1390,585 @@ class MainActivity : ComponentActivity() {
                                     shape = RoundedCornerShape(10.dp),
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(42.dp)
+                                        .height(44.dp)
                                 ) {
                                     Text(
                                         "Restore to Default",
-                                        fontSize = 12.5.sp,
+                                        fontSize = 16.sp,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
                             }
                         }
                     }
+                }
 
-                    // Test CRT Screen-Off Button (Full-width)
-                    CascadingEntrance(index = 5, visible = startCascade) {
-                        Button(
-                            onClick = {
-                                val intent = Intent(this@MainActivity, LockTriggerActivity::class.java).apply {
-                                    action = "com.retro.crteffect.TRIGGER_LOCK"
-                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                // Clearance spacer so the lowest card can scroll completely clear of the fixed bottom footer
+                Spacer(modifier = Modifier.height(footerHeightDp.coerceAtLeast(86.dp)))
+            }
+
+                // ── 2. Fixed Stationary Header (Staggers in at index 0, then remains stationary) ──
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .zIndex(10f)
+                ) {
+                    CascadingEntrance(index = 0, visible = startCascade) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF121212))
+                                    .statusBarsPadding()
+                                    .zIndex(2f)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 16.dp, start = 20.dp, end = 20.dp, bottom = 14.dp)
+                                        .onGloballyPositioned { coordinates ->
+                                            headerHeightPx = coordinates.size.height
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                            Text(
+                                                text = "CRT Screen-Off Engine",
+                                                fontSize = 24.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                lineHeight = 28.sp,
+                                                color = Color(0xFFE2E8F0),
+                                                modifier = Modifier
+                                                    .padding(bottom = 2.dp)
+                                                    .graphicsLayer {
+                                                        translationX = headerShakeX
+                                                        renderEffect = headerRenderEffect
+                                                    }
+                                            )
+                                            Text(
+                                                text = "Cyanogen-inspired electron-beam animation without root.",
+                                                fontSize = 12.5.sp,
+                                                lineHeight = 15.sp,
+                                                color = Color(0xFF94A3B8)
+                                            )
+                                        }
+
+                                    // 3-dot overflow menu
+                                    Box {
+                                        IconButton(
+                                            onClick = { menuExpanded = true },
+                                            enabled = !showAboutPage && !showAcknowledgmentPage,
+                                            modifier = Modifier.size(38.dp)
+                                        ) {
+                                            MoreVertIcon(
+                                                tint = Color(0xFFE2E8F0)
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = menuExpanded,
+                                            onDismissRequest = { menuExpanded = false },
+                                            modifier = Modifier
+                                                .background(Color(0xFF222222))
+                                                .border(1.dp, Color(0xFF383838), RoundedCornerShape(8.dp))
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        "Capacitor Advisory",
+                                                        color = Color.White,
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    AdvisoryIcon(
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                },
+                                                onClick = {
+                                                    menuExpanded = false
+                                                    dontShowAdvisoryAgain = prefs.getBoolean("hide_anode_bleed_notice", false)
+                                                    showAdvisoryBanner = true
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        "Special Acknowledgment",
+                                                        color = Color.White,
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    SparkleIcon(
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                },
+                                                onClick = {
+                                                    menuExpanded = false
+                                                    showAcknowledgmentPage = true
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        "About",
+                                                        color = Color.White,
+                                                        fontSize = 14.sp,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                },
+                                                leadingIcon = {
+                                                    InfoIcon(
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                },
+                                                onClick = {
+                                                    menuExpanded = false
+                                                    showAboutPage = true
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
-                                startActivity(intent)
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                                .padding(top = 4.dp),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Test CRT Screen-Off Now", color = Color.Black, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+
+
+
+                            // Dynamic gradient feather when content scrolls behind the fixed header
+                            val featherAlpha = (scrollState.value / 35f).coerceIn(0f, 1f)
+                            if (featherAlpha > 0.01f) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(14.dp)
+                                        .graphicsLayer { alpha = featherAlpha }
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(
+                                                    Color(0xFF121212),
+                                                    Color(0xFF121212).copy(alpha = 0.5f),
+                                                    Color.Transparent
+                                                )
+                                            )
+                                        )
+                                )
+                            }
                         }
                     }
+                }
+
+                // Dimming scrim for the advisory banner (dims out background so the banner pops)
+                AnimatedVisibility(
+                    visible = showAdvisoryBanner,
+                    enter = fadeIn(animationSpec = tween(320)),
+                    exit = fadeOut(animationSpec = tween(220)),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(7f)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.62f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                if (dontShowAdvisoryAgain) {
+                                    prefs.edit().putBoolean("hide_anode_bleed_notice", true).apply()
+                                }
+                                showAdvisoryBanner = false
+                            }
+                    )
+                }
+
+                // ── 2.5 Floating Capacitor Discharge Advisory Banner ──
+                // Sits full screen width, behind the fixed header (zIndex 8f vs header 10f), sliding down OVER the cards (cards at 0f)
+                val bannerTopClearance = (headerHeightDp + 26.dp).coerceAtLeast(106.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(top = bannerTopClearance)
+                        .zIndex(8f)
+                ) {
+                    AnimatedVisibility(
+                        visible = showAdvisoryBanner,
+                        enter = slideInVertically(
+                            initialOffsetY = { -it - headerHeightPx - 120 },
+                            animationSpec = tween(420, easing = FastOutSlowInEasing)
+                        ),
+                        exit = slideOutVertically(
+                            targetOffsetY = { -it - headerHeightPx - 120 },
+                            animationSpec = tween(420, easing = FastOutSlowInEasing)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        val dismissBanner = {
+                            prefs.edit().putBoolean("hide_anode_bleed_notice", dontShowAdvisoryAgain).apply()
+                            showAdvisoryBanner = false
+                        }
+
+                        val coroutineScope = rememberCoroutineScope()
+                        val dragOffsetY = remember { Animatable(0f) }
+                        val density = LocalDensity.current
+
+                        LaunchedEffect(showAdvisoryBanner) {
+                            if (showAdvisoryBanner) {
+                                dragOffsetY.snapTo(0f)
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer {
+                                    translationY = dragOffsetY.value
+                                }
+                                .pointerInput(Unit) {
+                                    val dismissThresholdPx = with(density) { 64.dp.toPx() }
+                                    detectVerticalDragGestures(
+                                        onDragStart = { },
+                                        onDragEnd = {
+                                            if (dragOffsetY.value < -dismissThresholdPx) {
+                                                // Trigger single smooth slide-out transition without hesitation
+                                                dismissBanner()
+                                            } else {
+                                                coroutineScope.launch {
+                                                    dragOffsetY.animateTo(
+                                                        targetValue = 0f,
+                                                        animationSpec = spring(
+                                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                            stiffness = Spring.StiffnessMediumLow
+                                                        )
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        onDragCancel = {
+                                            coroutineScope.launch {
+                                                dragOffsetY.animateTo(
+                                                    targetValue = 0f,
+                                                    animationSpec = spring(Spring.DampingRatioMediumBouncy)
+                                                )
+                                            }
+                                        },
+                                        onVerticalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            val current = dragOffsetY.value
+                                            val target = if (current + dragAmount > 0f) {
+                                                (current + dragAmount * 0.15f).coerceAtMost(16f)
+                                            } else {
+                                                current + dragAmount
+                                            }
+                                            coroutineScope.launch {
+                                                dragOffsetY.snapTo(target)
+                                            }
+                                        }
+                                    )
+                                },
+                            shape = RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
+                            color = Color(0xFF292929),
+                            border = BorderStroke(1.dp, Color(0xFF3E3E3E)),
+                            shadowElevation = 8.dp
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp)
+                            ) {
+                                // Label - Single line, #be6060, no icon, restored ':P' emoticon on the right
+                                Text(
+                                    text = "CAPACITOR DISCHARGE ADVISORY :P",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp,
+                                    color = Color(0xFFBE6060),
+                                    maxLines = 1,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+
+                                // Body Text
+                                Text(
+                                    text = "Notice the Test Button twitching and white scanlines arcing across your screen? Don’t panic—your display is 100% safe.\n\nThat button is wired directly in parallel with the main flyback transformer and is essentially sweating 30 kilovolts of pure ungrounded terror, waiting for your finger to close the circuit and discharge the beast. The sporadic scanline micro-arcs are simply simulated AnodeBleed flux leaking across the raster buffer while it holds back the collapse.",
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 17.5.sp,
+                                    color = Color(0xFFCBD5E1),
+                                    modifier = Modifier.padding(bottom = 10.dp)
+                                )
+
+                                // Surface Charge Warning Callout
+                                Text(
+                                    text = buildAnnotatedString {
+                                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color(0xFFDF9595))) {
+                                            append("⚠️ Surface Charge Warning: ")
+                                        }
+                                        append("Touching the glass triggers mild electrostatic discharges. The deflection yoke is currently mistaking your finger for an ungrounded screwdriver, bleeding high-voltage static slightly beyond OSHA tolerances and ionizing your fingerprint ridges on contact. It tickles, doesn't it?")
+                                    },
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.5.sp,
+                                    color = Color(0xFFD68E8E),
+                                    modifier = Modifier.padding(bottom = 14.dp)
+                                )
+
+                                // Single Bottom Action Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    // Don't show this again circular check toggle
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                val updated = !dontShowAdvisoryAgain
+                                                dontShowAdvisoryAgain = updated
+                                                prefs.edit().putBoolean("hide_anode_bleed_notice", updated).apply()
+                                            }
+                                            .padding(vertical = 4.dp, horizontal = 2.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(18.dp)
+                                                .border(
+                                                    width = 1.5.dp,
+                                                    color = if (dontShowAdvisoryAgain) MaterialTheme.colorScheme.primary else Color(0xFF64748B),
+                                                    shape = CircleShape
+                                                )
+                                                .background(
+                                                    color = if (dontShowAdvisoryAgain) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f) else Color.Transparent,
+                                                    shape = CircleShape
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (dontShowAdvisoryAgain) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(8.dp)
+                                                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                                )
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(7.dp))
+                                        Text(
+                                            text = "Don't show this again",
+                                            fontSize = 12.sp,
+                                            color = if (dontShowAdvisoryAgain) Color(0xFFE2E8F0) else Color(0xFF94A3B8)
+                                        )
+                                    }
+
+                                    // Dismiss Button in app's main blue accent color
+                                    Button(
+                                        onClick = { dismissBanner() },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = Color.Black
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                                        modifier = Modifier.height(34.dp)
+                                    ) {
+                                        Text(
+                                            text = "Dismiss",
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                }
+
+                                // Subtle swipe-up hint pill at the bottom
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.CenterHorizontally)
+                                        .padding(top = 10.dp)
+                                        .size(width = 32.dp, height = 3.dp)
+                                        .background(Color(0xFF4A4A4A), RoundedCornerShape(2.dp))
+                                )
+                            }
+                        }
                     }
+                }
+
+                // ── 3. Fixed Stationary Footer (Houses Test CRT Screen-Off button with upward shadow) ──
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .zIndex(10f)
+                ) {
+                    CascadingEntrance(index = 5, visible = startCascade) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            // Upward gradient feather / shadow as cards scroll behind the fixed footer
+                            val canScrollForward = scrollState.canScrollForward
+                            val upwardShadowAlpha = if (canScrollForward) 1f else 0.45f
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(20.dp)
+                                    .graphicsLayer { alpha = upwardShadowAlpha }
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color.Transparent,
+                                                Color(0xFF121212).copy(alpha = 0.55f),
+                                                Color(0xFF121212)
+                                            )
+                                        )
+                                    )
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF121212))
+                                    .navigationBarsPadding()
+                                    .onGloballyPositioned { coordinates ->
+                                        footerHeightPx = coordinates.size.height
+                                    }
+                                    .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 12.dp)
+                            ) {
+                                DischargingTestButton(
+                                    onClick = {
+                                        val intent = Intent(this@MainActivity, LockTriggerActivity::class.java).apply {
+                                            action = "com.retro.crteffect.TRIGGER_LOCK"
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        }
+                                        startActivity(intent)
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Residual discharge electric scanline & luma twitch overlay
+            if (dischargeValue > 0.001f) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(15f)
+                        .graphicsLayer { alpha = dischargeValue * 0.22f }
+                ) {
+                    drawRect(Color(0xFF00E5FF).copy(alpha = 0.12f))
+                    val tearY = size.height * 0.45f
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.65f),
+                        start = Offset(0f, tearY),
+                        end = Offset(size.width, tearY),
+                        strokeWidth = 2.dp.toPx()
+                    )
+                }
+            }
+
+            // Capacitive breakdown scanline arc overlay (subtle intermittent high-voltage tears across the whole viewport)
+            if (activeArcLines.isNotEmpty() && arcAlphaAnim.value > 0.005f) {
+                val currentAlpha = arcAlphaAnim.value
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(18f)
+                ) {
+                    for (line in activeArcLines) {
+                        val y = size.height * line.yRatio
+                        val xStart = size.width * line.startXRatio
+                        val xEnd = size.width * line.endXRatio
+
+                        // 1. Ultra-faint full-width horizontal retrace guide (gives the authentic scanline beam feel)
+                        drawLine(
+                            color = Color.White.copy(alpha = currentAlpha * 0.15f),
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = 0.75.dp.toPx()
+                        )
+
+                        // 2. Cyan phosphor excitation aura around the hot arc
+                        drawLine(
+                            color = Color(0xFF00E5FF).copy(alpha = currentAlpha * 0.38f),
+                            start = Offset(xStart, y),
+                            end = Offset(xEnd, y),
+                            strokeWidth = (line.strokeWidthDp + 2.4f).dp.toPx()
+                        )
+
+                        // 3. Hot blazing white core arc
+                        drawLine(
+                            color = Color.White.copy(alpha = currentAlpha * 0.85f),
+                            start = Offset(xStart, y),
+                            end = Offset(xEnd, y),
+                            strokeWidth = line.strokeWidthDp.dp.toPx()
+                        )
+                    }
+                }
+            }
 
                     // About Page Overlay
                     AnimatedVisibility(
                         visible = showAboutPage,
                         enter = slideInHorizontally(
                             initialOffsetX = { it },
-                            animationSpec = tween(280, easing = FastOutSlowInEasing)
-                        ) + fadeIn(animationSpec = tween(200)),
+                            animationSpec = tween(260, easing = LinearEasing)
+                        ) + fadeIn(animationSpec = tween(140, easing = LinearEasing)),
                         exit = slideOutHorizontally(
                             targetOffsetX = { it },
                             animationSpec = tween(240, easing = FastOutSlowInEasing)
                         ) + fadeOut(animationSpec = tween(180)),
                         modifier = Modifier
                             .fillMaxSize()
-                            .zIndex(2f)
+                            .zIndex(20f)
                     ) {
                         AboutScreen(onBack = { showAboutPage = false })
                     }
 
-                    // 2-second exclusive splash screen with unmasked CRT_SplashScreen.png
+                    // Special Acknowledgment Page Overlay
+                    AnimatedVisibility(
+                        visible = showAcknowledgmentPage,
+                        enter = slideInHorizontally(
+                            initialOffsetX = { it },
+                            animationSpec = tween(260, easing = LinearEasing)
+                        ) + fadeIn(animationSpec = tween(140, easing = LinearEasing)),
+                        exit = slideOutHorizontally(
+                            targetOffsetX = { it },
+                            animationSpec = tween(240, easing = FastOutSlowInEasing)
+                        ) + fadeOut(animationSpec = tween(180)),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(20f)
+                    ) {
+                        SpecialAcknowledgmentScreen(onBack = { showAcknowledgmentPage = false })
+                    }
+
+                    // Vintage electrifying CRT intro splash with cathode strike, glitch & bloom
                     AnimatedVisibility(
                         visible = showSplash,
                         enter = EnterTransition.None,
                         exit = fadeOut(animationSpec = tween(350)),
-                        modifier = Modifier.zIndex(10f)
+                        modifier = Modifier.zIndex(30f)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(Color(0xFF121212)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(R.drawable.splash_crt_logo),
-                                contentDescription = "CRT Screen Off Splash",
-                                modifier = Modifier
-                                    .fillMaxWidth(0.72f)
-                                    .wrapContentHeight()
-                            )
-                        }
+                        CrtSplashScreen(
+                            onStartCascade = {
+                                hasShownSplash = true
+                                startCascade = true
+                            },
+                            onDismiss = {
+                                hasShownSplash = true
+                                showSplash = false
+                            }
+                        )
                     }
                 }
             }
@@ -909,7 +1979,8 @@ class MainActivity : ComponentActivity() {
 
 /**
  * Staggered cascading entrance wrapper that smoothly slides items upwards
- * from bottom to top with an elegant alpha fade and decelerating physics.
+ * from deep beneath the viewport with 3D plane tilt, non-linear alpha bloom,
+ * and decelerating magnetic physics.
  */
 @Composable
 fun CascadingEntrance(
@@ -922,23 +1993,38 @@ fun CascadingEntrance(
 
     LaunchedEffect(visible) {
         if (visible) {
-            delay(index * 75L)
+            delay(index * 95L)
             animProgress.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(
-                    durationMillis = 580,
-                    easing = FastOutSlowInEasing
+                    durationMillis = 650,
+                    easing = CubicBezierEasing(0.08f, 0.85f, 0.15f, 1.0f)
                 )
             )
         }
     }
 
+    val p = animProgress.value
+    val density = LocalDensity.current.density
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .graphicsLayer {
-                alpha = animProgress.value
-                translationY = (1f - animProgress.value) * 150f * density
+                // Decoupled non-linear alpha bloom: stays hidden at launch, then blooms in smoothly
+                alpha = ((p / 0.65f).coerceIn(0f, 1f)).pow(1.6f)
+
+                // Snappy vintage travel distance (280dp)
+                translationY = (1f - p) * 280f * density
+
+                // Z-axis scale elevation (0.92 -> 1.0)
+                val scale = 0.92f + (p * 0.08f)
+                scaleX = scale
+                scaleY = scale
+
+                // Subtle 3D perspective tilt
+                cameraDistance = 16f * density
+                rotationX = (1f - p) * 8.0f
             }
     ) {
         content()
@@ -1029,3 +2115,172 @@ fun SetupOptionCard(
         }
     }
 }
+
+/**
+ * Vintage Overloaded Cathode Trigger Button.
+ *
+ * Sits in an obsidian gunmetal chassis with crisp white typography.
+ * Runs the exact same AGSL chromatic glitch shader & deflection shudder as the dashboard,
+ * but driven by an organic coroutine loop with randomized intervals and variable discharge
+ * profiles (micro-twitch, twin-arc breakdown, delayed sputtering capacitive drain) so it
+ * never plays the exact same mechanical loop.
+ */
+@Composable
+fun DischargingTestButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val density = LocalDensity.current.density
+    val dischargeShader = remember {
+        try {
+            RuntimeShader(MainActivity.DISCHARGE_AGSL)
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
+    val dischargeAnim = remember { Animatable(0f) }
+
+    // Organic randomized discharge loop
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            // Unpredictable quiet rest between 2.2s and 4.6s
+            val restDuration = Random.nextLong(2200L, 4600L)
+            delay(restDuration)
+
+            // Randomize the personality of this specific discharge event
+            val eventType = Random.nextInt(3) // 0: Micro-twitch, 1: Twin-arc strike, 2: Deep lazy buzz
+            val intensity = Random.nextFloat() * 0.45f + 0.55f // 0.55x .. 1.0x
+
+            when (eventType) {
+                0 -> {
+                    // Quick sharp micro-glitch
+                    dischargeAnim.animateTo(intensity * 0.70f, tween(30, easing = LinearEasing))
+                    dischargeAnim.animateTo(0f, tween(160, easing = FastOutSlowInEasing))
+                }
+                1 -> {
+                    // Classic twin-arc breakdown
+                    dischargeAnim.animateTo(intensity, tween(35, easing = LinearEasing))
+                    dischargeAnim.animateTo(0f, tween(180, easing = FastOutSlowInEasing))
+                    delay(Random.nextLong(60L, 100L))
+                    dischargeAnim.animateTo(intensity * 0.60f, tween(30, easing = LinearEasing))
+                    dischargeAnim.animateTo(0f, tween(210, easing = FastOutSlowInEasing))
+                }
+                2 -> {
+                    // Deep, sputtering capacitive drain
+                    dischargeAnim.animateTo(intensity * 0.90f, tween(50, easing = LinearEasing))
+                    dischargeAnim.animateTo(0f, tween(380, easing = FastOutSlowInEasing))
+                }
+            }
+        }
+    }
+
+    val dischargeIntensity = if (isPressed) 1.0f else dischargeAnim.value
+
+    // Exact same deflection coil micro-shake math as dashboard
+    val shakeX = if (dischargeIntensity > 0.001f) {
+        sin(dischargeIntensity * 28f) * 7f * dischargeIntensity * density
+    } else 0f
+    val shakeY = if (dischargeIntensity > 0.001f) {
+        cos(dischargeIntensity * 36f) * 3f * dischargeIntensity * density
+    } else 0f
+
+    // Exact same AGSL chromatic aberration RenderEffect as dashboard
+    val renderEffect = remember(dischargeIntensity) {
+        if (dischargeIntensity > 0.001f && dischargeShader != null) {
+            try {
+                dischargeShader.setFloatUniform("chromaticOffset", dischargeIntensity * 14f * density)
+                RenderEffect.createRuntimeShaderEffect(dischargeShader, "image").asComposeRenderEffect()
+            } catch (e: Throwable) {
+                null
+            }
+        } else {
+            null
+        }
+    }
+
+    // Static anchored chassis border (stable, excluded from shader and deflection shake)
+    val borderColor = if (isPressed) Color(0xFF444444) else Color(0xFF383838)
+    val containerColor = if (isPressed) Color(0xFF333333) else Color(0xFF292929)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .graphicsLayer {
+                if (isPressed) {
+                    scaleX = 0.985f
+                    scaleY = 0.985f
+                }
+            }
+            .clip(CircleShape)
+            .background(containerColor)
+            .border(BorderStroke(1.dp, borderColor), CircleShape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        // Inner Content Container: Anchored inside the frame, receives all AGSL chromatic glitches & coil shudders
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    translationX = shakeX
+                    translationY = shakeY
+                    this.renderEffect = renderEffect
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            // High-voltage electric scanline overlay inside button during organic spontaneous discharge
+            if (!isPressed && dischargeIntensity > 0.05f) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val tearY = size.height * 0.48f
+                    drawLine(
+                        color = Color.White.copy(alpha = dischargeIntensity * 0.70f),
+                        start = Offset(0f, tearY),
+                        end = Offset(size.width, tearY),
+                        strokeWidth = 1.8.dp.toPx()
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "⚡",
+                    fontSize = 14.sp,
+                    color = if (dischargeIntensity > 0.1f) Color(0xFF00E5FF) else Color(0xFF64B5F6),
+                    modifier = Modifier.padding(end = 6.dp)
+                )
+                Text(
+                    text = "Test CRT Screen-Off Now",
+                    color = Color.White,
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.3.sp
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Represents a momentary capacitive breakdown scanline arc that glitches
+ * across the viewport due to simulated high-voltage capacitor instability.
+ */
+private data class CapacitorArcLine(
+    val yRatio: Float,
+    val startXRatio: Float,
+    val endXRatio: Float,
+    val strokeWidthDp: Float
+)
+
+

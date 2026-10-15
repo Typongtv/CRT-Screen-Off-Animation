@@ -1,13 +1,16 @@
 package com.retro.crteffect
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
+import android.graphics.RenderEffect
+import android.graphics.RuntimeShader
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -15,32 +18,91 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import kotlinx.coroutines.delay
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun AboutScreen(
     onBack: () -> Unit
 ) {
-    val context = LocalContext.current
     val scrollState = rememberScrollState()
+    val density = LocalDensity.current.density
+    val chromaticSplitAnim = remember { Animatable(0f) }
 
-    Column(
+    val dischargeShader = remember {
+        try {
+            RuntimeShader(MainActivity.DISCHARGE_AGSL)
+        } catch (e: Throwable) {
+            null
+        }
+    }
+
+    // Physical CRT impact collision: screen stops dead on the left bezel at 260ms.
+    // The internal electron beam and shadow mask lose convergence, creating an intense chromatic split flicker.
+    LaunchedEffect(Unit) {
+        delay(260L) // Wait for the 260ms linear slide to strike the left wall
+        // 1. Violent electron beam mis-convergence spike on impact
+        chromaticSplitAnim.animateTo(1.0f, tween(45, easing = LinearEasing))
+        // 2. High-energy flicker & twitch
+        chromaticSplitAnim.animateTo(0.55f, tween(110, easing = FastOutSlowInEasing))
+        // 3. Secondary elastic aftershock
+        chromaticSplitAnim.animateTo(0.28f, tween(110, easing = FastOutSlowInEasing))
+        // 4. Settles back into razor-sharp convergence
+        chromaticSplitAnim.animateTo(0.0f, tween(160, easing = FastOutSlowInEasing))
+    }
+
+    val chromaticIntensity = chromaticSplitAnim.value
+
+    // Intense chromatic split along the horizontal axis (zero layout displacement)
+    val renderEffect = remember(chromaticIntensity) {
+        if (chromaticIntensity > 0.001f && dischargeShader != null) {
+            try {
+                // Peak offset at 28dp * density: text glyphs and lines intensely split into Red and Cyan ghosts
+                dischargeShader.setFloatUniform("chromaticOffset", chromaticIntensity * 28f * density)
+                RenderEffect.createRuntimeShaderEffect(dischargeShader, "image").asComposeRenderEffect()
+            } catch (e: Throwable) {
+                null
+            }
+        } else {
+            null
+        }
+    }
+
+    CrtTouchStaticContainer(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF121212))
-            .statusBarsPadding()
-            .navigationBarsPadding()
     ) {
+        // High-voltage flickering scanline breakdown arcs
+        RandomScanlineArcOverlay(zIndex = 15f)
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .graphicsLayer {
+                    this.renderEffect = renderEffect
+                }
+        ) {
         // ── Top Navigation Bar (Badge removed as requested) ──
         Row(
             modifier = Modifier
@@ -53,7 +115,7 @@ fun AboutScreen(
                 modifier = Modifier.size(42.dp)
             ) {
                 BackArrowIcon(
-                    tint = MaterialTheme.colorScheme.primary
+                    tint = Color.White
                 )
             }
             Spacer(modifier = Modifier.width(6.dp))
@@ -145,7 +207,7 @@ fun AboutScreen(
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        text = "Based on lucasa831's Fork of Xposed-ScreenOffAnimation",
+                        text = "Inspired by CyanogenMod's ElectronBeam Legacy",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 16.sp,
                         lineHeight = 20.sp,
@@ -153,109 +215,14 @@ fun AboutScreen(
                     )
 
                     Text(
-                        text = "The original Xposed Screen-Off animation module was created by developer zst123 on GitHub. Developer lucasa831 later forked it and provided valuable updates.\n\n" +
-                                "This project was built upon the forked open-source Xposed-ScreenOffAnimation project by lucasa831. While the classic Xposed implementation required device rooting and system-level framework injection, this app revives that iconic electron-beam collapse completely rootless on Android 13 through Android 16+.",
+                        text = "Back in the golden era of Android (Android 2.3 Gingerbread through 4.0 Ice Cream Sandwich), Google and the legendary CyanogenMod community (CM7 / CM9) introduced the iconic CRT screen-off animation, handled natively in C++ inside Android's display compositor SurfaceFlinger (ElectronBeam.cpp).\n\n" +
+                                "As deflection coils collapsed the vertical sweep, the electron beam density flared into a searing horizontal razor line before vanishing into pure darkness. When newer Android releases retired this native effect, achieving it historically required device rooting, custom ROMs (CyanogenMod, Paranoid Android, AOKP), or running invasive framework-hooking tools that tripped Knox hardware fuses and broke SafetyNet / Play Integrity.\n\n" +
+                                "This project revives that beloved retro electron-beam experience completely rootless on Android 13 through Android 16+, combining official Android Accessibility APIs with high-performance hardware-accelerated rendering.",
                         fontSize = 14.sp,
-                        lineHeight = 19.sp,
+                        lineHeight = 19.5.sp,
                         color = Color(0xFFCBD5E1),
-                        modifier = Modifier.padding(top = 6.dp, bottom = 10.dp)
+                        modifier = Modifier.padding(top = 6.dp)
                     )
-
-                    // Compact Clickable GitHub Repository Card (lucasa831)
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                try {
-                                    val intent = Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse("https://github.com/lucasa831/Xposed-ScreenOffAnimation")
-                                    )
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {}
-                            },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF142436)),
-                        border = BorderStroke(1.dp, Color(0xFF64B5F6).copy(alpha = 0.5f))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 9.dp)
-                        ) {
-                            Text(
-                                text = "lucasa831 / Xposed-ScreenOffAnimation",
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
-                                lineHeight = 17.sp
-                            )
-                            Text(
-                                text = "https://github.com/lucasa831/Xposed-ScreenOffAnimation",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                textDecoration = TextDecoration.Underline,
-                                lineHeight = 15.sp,
-                                modifier = Modifier.padding(top = 1.dp)
-                            )
-                            Text(
-                                text = "Tap to open lucasa831's forked repository on GitHub",
-                                fontSize = 12.5.sp,
-                                color = Color(0xFF94A3B8),
-                                lineHeight = 15.sp,
-                                modifier = Modifier.padding(top = 1.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Compact Upstream Original Creator Reference (zst123)
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                try {
-                                    val intent = Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse("https://github.com/zst123/Xposed-ScreenOffAnimation")
-                                    )
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {}
-                            },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFF181C24)),
-                        border = BorderStroke(1.dp, Color(0xFF383838))
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 9.dp)
-                        ) {
-                            Text(
-                                text = "zst123 / Xposed-ScreenOffAnimation",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color(0xFFCBD5E1),
-                                lineHeight = 17.sp
-                            )
-                            Text(
-                                text = "https://github.com/zst123/Xposed-ScreenOffAnimation",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                textDecoration = TextDecoration.Underline,
-                                lineHeight = 15.sp,
-                                modifier = Modifier.padding(top = 1.dp)
-                            )
-                            Text(
-                                text = "Tap to open zst123's original upstream project on GitHub",
-                                fontSize = 12.5.sp,
-                                color = Color(0xFF94A3B8),
-                                lineHeight = 15.sp,
-                                modifier = Modifier.padding(top = 1.dp)
-                            )
-                        }
-                    }
                 }
             }
 
@@ -280,10 +247,10 @@ fun AboutScreen(
 
                     Text(
                         text = "Modern versions of Android (Android 13 through Android 16+) possess stringent security sandbox protections that previously rendered framework-hooked screen-off animations obsolete. The objective of this project is twofold:\n\n" +
-                                "1. Complete Rootless Execution: Seamlessly capture the active screen and trigger the display sleep action using official Android Accessibility APIs, ensuring 100% Knox/Play Integrity safety.\n\n" +
-                                "2. Dual-Engine Fidelity: Give users the exact mathematical 1:1 original Xposed animation, while also offering an ultra-sophisticated, physics-based Enhanced Phosphor Overdrive engine engineered with modern GPU shaders.",
+                                "1. Complete Rootless Execution: Seamlessly capture the active screen and trigger the display sleep action using official Android Accessibility APIs, ensuring 100% Knox/Play Integrity safety with zero root permissions.\n\n" +
+                                "2. Dual-Engine Fidelity: Deliver a CyanogenMod-inspired Retro CRT engine calibrated with realistic vertical magnetic cling, directional true-color smear, and delayed crescendo flare, alongside an ultra-sophisticated, physics-based Enhanced Phosphor Overdrive engine engineered with modern AGSL GPU shaders and cathode afterglow.",
                         fontSize = 14.sp,
-                        lineHeight = 19.sp,
+                        lineHeight = 19.5.sp,
                         color = Color(0xFFCBD5E1),
                         modifier = Modifier.padding(top = 6.dp)
                     )
@@ -314,17 +281,17 @@ fun AboutScreen(
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Authentic 1:1 Xposed Engine",
+                            text = "CyanogenMod Retro CRT Engine",
                             fontSize = 15.5.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFFE2E8F0)
                         )
                     }
                     Text(
-                        text = "• Exact 1:1 replication of lucasa831's CRT.java and crt_tv.xml algorithms.\n" +
-                                "• Strict 0.66 phase split ratio (initial horizontal collapse to line, followed by rapid squeeze to dot).\n" +
-                                "• Authentic 35% restrained white flash burst during electron beam deceleration.\n" +
-                                "• Quadratic acceleration curve faithfully matching the vintage Gingerbread / JellyBean era.",
+                        text = "• Inspired by CyanogenMod (CM7 / CM9 / AOSP Gingerbread & ICS) SurfaceFlinger ElectronBeam.\n" +
+                                "• Dual-harmonic magnetic resistance curve with distinct bezel cling (1.5% drop at 30%, 14% at 60%) snapping into terminal-velocity collapse.\n" +
+                                "• Multi-tap true-color directional smear along the collapse vector with subtle optical chromatic fringe.\n" +
+                                "• Delayed crescendo phosphor flare with additive wash peaking as the raster flattens, followed by a clean horizontal beam zip into extinction.",
                         fontSize = 13.5.sp,
                         lineHeight = 18.sp,
                         color = Color(0xFF94A3B8),
@@ -375,7 +342,7 @@ fun AboutScreen(
                 category = "PHYSICS & OPTICS",
                 title = "3-Level Magnetic Coil Resistance",
                 description = "Simulates the physical inductive drag of copper deflection coils:\n" +
-                        "• Classic (2.0x): Smooth quadratic collapse for the familiar Xposed feel.\n" +
+                        "• Classic (2.0x): Smooth quadratic collapse for the familiar retro Gingerbread feel.\n" +
                         "• Heavy Inductance (4.0x): Viscous magnetic crawl, heavy initial resistance, and explosive release.\n" +
                         "• Extreme Tension (6.0x): Sustained magnetic struggle, deep slow creep, and sudden guillotine plunge."
             )
@@ -422,7 +389,7 @@ fun AboutScreen(
             FeatureDetailCard(
                 category = "ORIENTATION & SPEED",
                 title = "Direction & Timing Customization",
-                description = "Toggle between Classic Horizontal (vertical collapse to horizontal slit -> horizontal snap) and Classic Vertical (curtain style) with fine duration tuning between 150ms and 800ms."
+                description = "Toggle between Classic Horizontal (vertical collapse to horizontal slit -> horizontal snap) and Classic Vertical (curtain style) with fine duration tuning between 300ms and 1000ms."
             )
 
             // Feature 8
@@ -435,7 +402,7 @@ fun AboutScreen(
                         "• Motorola Double Tap Back gestures\n" +
                         "• Xiaomi / HyperOS gesture shortcuts\n" +
                         "• Edge Gestures & Fluid Navigation Gestures (FNG)\n" +
-                        "• Home screen launcher shortcuts and third-party automation tools."
+                        "• Good Lock RegiStar, Key Remappers, and automation tools (Tasker, MacroDroid)."
             )
 
             // Feature 9
@@ -508,6 +475,8 @@ fun AboutScreen(
             }
         }
     }
+
+}
 }
 
 @Composable

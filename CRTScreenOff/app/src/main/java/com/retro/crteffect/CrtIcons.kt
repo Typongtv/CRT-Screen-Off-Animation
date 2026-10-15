@@ -129,3 +129,144 @@ fun ChevronIcon(
     }
 }
 
+/**
+ * Material-style Advisory / Warning triangle icon with rounded stroke and exclamation mark.
+ */
+@Composable
+fun WarningIcon(
+    tint: Color = Color.White,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier.size(20.dp)) {
+        val strokeWidth = 1.8.dp.toPx()
+        val path = Path().apply {
+            moveTo(size.width * 0.50f, size.height * 0.16f)
+            lineTo(size.width * 0.88f, size.height * 0.82f)
+            lineTo(size.width * 0.12f, size.height * 0.82f)
+            close()
+        }
+        drawPath(
+            path = path,
+            color = tint,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+        // Exclamation stem
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.50f, size.height * 0.42f),
+            end = Offset(size.width * 0.50f, size.height * 0.62f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        // Exclamation dot
+        drawCircle(
+            color = tint,
+            radius = strokeWidth * 0.70f,
+            center = Offset(size.width * 0.50f, size.height * 0.73f)
+        )
+    }
+}
+
+@Composable
+fun AdvisoryIcon(
+    tint: Color = Color.White,
+    modifier: Modifier = Modifier
+) = WarningIcon(tint = tint, modifier = modifier)
+
+/**
+ * Material-style 4-point AI sparkle/star icon for Special Acknowledgment.
+ */
+@Composable
+fun SparkleIcon(
+    tint: Color = Color.White,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier.size(20.dp)) {
+        val strokeWidth = 1.8.dp.toPx()
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val r = (size.minDimension / 2f) * 0.82f
+
+        val path = Path().apply {
+            moveTo(cx, cy - r)
+            quadraticTo(cx, cy, cx + r, cy)
+            quadraticTo(cx, cy, cx, cy + r)
+            quadraticTo(cx, cy, cx - r, cy)
+            quadraticTo(cx, cy, cx, cy - r)
+            close()
+        }
+        drawPath(
+            path = path,
+            color = tint,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+    }
+}
+
+/**
+ * Material Symbols Outlined Logout icon.
+ */
+@Composable
+fun LogoutIcon(
+    tint: Color = Color.White,
+    rotation: Float = 0f,
+    modifier: Modifier = Modifier
+) {
+    Canvas(
+        modifier = modifier
+            .size(18.dp)
+            .graphicsLayer { rotationZ = rotation }
+    ) {
+        val strokeWidth = 1.9.dp.toPx()
+        // Bracket doorway on left
+        val doorPath = Path().apply {
+            moveTo(size.width * 0.48f, size.height * 0.16f)
+            lineTo(size.width * 0.20f, size.height * 0.16f)
+            lineTo(size.width * 0.20f, size.height * 0.84f)
+            lineTo(size.width * 0.48f, size.height * 0.84f)
+        }
+        drawPath(
+            path = doorPath,
+            color = tint,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+        // Horizontal arrow shaft
+        val cy = size.height * 0.50f
+        drawLine(
+            color = tint,
+            start = Offset(size.width * 0.38f, cy),
+            end = Offset(size.width * 0.84f, cy),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+        // Arrow head pointing right
+        val headPath = Path().apply {
+            moveTo(size.width * 0.64f, size.height * 0.30f)
+            lineTo(size.width * 0.84f, cy)
+            lineTo(size.width * 0.64f, size.height * 0.70f)
+        }
+        drawPath(
+            path = headPath,
+            color = tint,
+            style = Stroke(
+                width = strokeWidth,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+    }
+}
+
+
