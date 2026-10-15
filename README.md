@@ -44,6 +44,15 @@ As deflection coils collapsed the vertical sweep, the electron beam density flar
 
 ---
 
+
+> [!CAUTION]
+> ### ⚠️ Hardware Advisory: Capacitive Phosphor Bleed
+> When interacting with the settings dashboard, you may notice micro-static visual arcs tracing your fingertips across the AMOLED panel. Please remain calm—it is merely localized harmonic resonance between your screen glass and our virtual cathode-ray tube.
+> 
+> *Just kidding!* That’s my custom touch-static overlay at work. It's a purely aesthetic homage to the days when touching your TV screen gave you an electrostatic high-five and made the hairs on your forearm stand on end. No rubber-soled shoes required.
+
+---
+
 ## ⚙️ How It Works
 
 1. **Trigger:** You tap the **CRT Lock** shortcut, trigger a gesture via Samsung One Hand Operation+, or fire the broadcast.
