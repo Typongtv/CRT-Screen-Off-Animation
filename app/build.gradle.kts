@@ -43,6 +43,19 @@ android {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
     }
+
+}
+
+androidComponents {
+    onVariants { variant ->
+        val suffix = if (variant.name.equals("release", ignoreCase = true)) "" else "-${variant.name}"
+        val version = android.defaultConfig.versionName ?: "1.0"
+        variant.outputs.forEach { output ->
+            (output as? com.android.build.api.variant.impl.VariantOutputImpl)?.let {
+                it.outputFileName = "CRT-Screen-Off-v${version}${suffix}.apk"
+            }
+        }
+    }
 }
 
 kotlin {

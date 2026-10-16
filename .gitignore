@@ -1,23 +1,50 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
-*.code-workspace
-diff_*.txt
-diff_main.txt
+# Built application files
+*.apk
+*.aar
+*.aab
+*.ap_
 
-CRTScreenOff/
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files / build caches
+build/
+**/build/
+bin/
+gen/
+out/
+.gradle/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+local.properties
+.DS_Store
+Thumbs.db
+ehthumbs.db
+*.code-workspace
+
+# Android Profiler & Debugger dumps
+captures/
+*.hprof
+
+# C/C++ native builds
+.externalNativeBuild/
+.cxx/
+
+# Keystores (Security & Size)
 *.jks
 *.keystore
-*.apk
+
+# Temporary diffs, logs & backups
+diff_*.txt
+diff_main.txt
+CRTScreenOff/
+*.log
+*.tmp
+*.bak
