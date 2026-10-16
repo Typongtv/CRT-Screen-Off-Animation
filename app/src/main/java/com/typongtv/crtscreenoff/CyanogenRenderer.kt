@@ -147,8 +147,8 @@ class CyanogenRenderer(
         val centerX = w / 2f
         val centerY = h / 2f
 
-        // Timeline Split (Exact 0.66 phase split ratio)
-        val phaseSplit = 0.66f
+        // Timeline Split: 0.58f allocates 58% to viscous vertical drop and 42% dedicated to fluid horizontal zip
+        val phaseSplit = 0.58f
         val scaleX: Float
         val scaleY: Float
         val zipT: Float
@@ -169,11 +169,12 @@ class CyanogenRenderer(
             when (style) {
                 CrtStyle.CLASSIC_HORIZONTAL -> {
                     scaleY = 1.0f - (p1 * 0.992f)
-                    scaleX = 1.0f + (p1 * 0.45f)
+                    // Flare gently during squish (barrel compression), settling to exactly 1.0f at razor collapse so horizontal zip starts at bezel edges
+                    scaleX = 1.0f + (kotlin.math.sin(p1 * Math.PI.toFloat()) * 0.12f)
                 }
                 CrtStyle.CLASSIC_VERTICAL -> {
                     scaleX = 1.0f - (p1 * 0.992f)
-                    scaleY = 1.0f + (p1 * 0.45f)
+                    scaleY = 1.0f + (kotlin.math.sin(p1 * Math.PI.toFloat()) * 0.12f)
                 }
             }
 
@@ -191,7 +192,7 @@ class CyanogenRenderer(
                 0f
             }
 
-            // Additive Phosphor Wash (PorterDuff.Mode.ADD): peaks at 0.92 pure additive white at t = 0.66 as image flattens
+            // Additive Phosphor Wash (PorterDuff.Mode.ADD): peaks at 0.92 pure additive white at t = 0.58 as image flattens
             additiveWashAlpha = if (u >= 0.65f) {
                 val prog = (u - 0.65f) / 0.35f
                 (prog.pow(1.5f) * 0.92f).coerceIn(0f, 0.92f)
@@ -199,18 +200,18 @@ class CyanogenRenderer(
                 0f
             }
         } else {
-            // Phase 2 (t > 0.66): Distinct, deliberate radiant beam zip shut
+            // Phase 2 (t > 0.58): Distinct, deliberate radiant beam zip shut
             zipT = ((t - phaseSplit) / (1f - phaseSplit)).coerceIn(0f, 1f)
-            val p2 = zipT.pow(1.45f)
+            val p2 = zipT.pow(1.6f)
 
             when (style) {
                 CrtStyle.CLASSIC_HORIZONTAL -> {
-                    scaleY = 0.008f * (1.0f - p2)
-                    scaleX = 1.45f * (1.0f - p2)
+                    scaleY = 0.008f * (1.0f - zipT)
+                    scaleX = (1.0f - p2).coerceAtLeast(0f)
                 }
                 CrtStyle.CLASSIC_VERTICAL -> {
-                    scaleX = 0.008f * (1.0f - p2)
-                    scaleY = 1.45f * (1.0f - p2)
+                    scaleX = 0.008f * (1.0f - zipT)
+                    scaleY = (1.0f - p2).coerceAtLeast(0f)
                 }
             }
 
@@ -289,30 +290,37 @@ class CyanogenRenderer(
 
         // Radiant Beam Zip (Phase 2)
         if (t > phaseSplit) {
+            // Filament maintains solid burning intensity until the final 6% snap into extinction
+            val beamAlpha = if (zipT > 0.94f) {
+                (1.0f - ((zipT - 0.94f) / 0.06f)).coerceIn(0f, 1f)
+            } else {
+                1.0f
+            }
+
             if (style == CrtStyle.CLASSIC_HORIZONTAL) {
                 val halfW = centerX * scaleX.coerceAtLeast(0f)
-                if (halfW > 0.5f && additiveWashAlpha > 0.02f) {
+                if (halfW > 0.5f && beamAlpha > 0.01f) {
                     // Electric Cyan Halo filament
                     beamHaloPaint.strokeWidth = 4.5f * density
-                    beamHaloPaint.alpha = (additiveWashAlpha * 0.70f * 255).toInt().coerceIn(0, 255)
+                    beamHaloPaint.alpha = (beamAlpha * 0.75f * 255).toInt().coerceIn(0, 255)
                     canvas.drawLine(centerX - halfW, centerY, centerX + halfW, centerY, beamHaloPaint)
 
                     // Incandescent White Core filament
                     beamCorePaint.strokeWidth = 2.0f * density
-                    beamCorePaint.alpha = ((additiveWashAlpha * 1.25f).coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255)
+                    beamCorePaint.alpha = (beamAlpha * 255).toInt().coerceIn(0, 255)
                     canvas.drawLine(centerX - halfW, centerY, centerX + halfW, centerY, beamCorePaint)
                 }
             } else {
                 val halfH = centerY * scaleY.coerceAtLeast(0f)
-                if (halfH > 0.5f && additiveWashAlpha > 0.02f) {
+                if (halfH > 0.5f && beamAlpha > 0.01f) {
                     // Electric Cyan Halo filament
                     beamHaloPaint.strokeWidth = 4.5f * density
-                    beamHaloPaint.alpha = (additiveWashAlpha * 0.70f * 255).toInt().coerceIn(0, 255)
+                    beamHaloPaint.alpha = (beamAlpha * 0.75f * 255).toInt().coerceIn(0, 255)
                     canvas.drawLine(centerX, centerY - halfH, centerX, centerY + halfH, beamHaloPaint)
 
                     // Incandescent White Core filament
                     beamCorePaint.strokeWidth = 2.0f * density
-                    beamCorePaint.alpha = ((additiveWashAlpha * 1.25f).coerceIn(0f, 1f) * 255).toInt().coerceIn(0, 255)
+                    beamCorePaint.alpha = (beamAlpha * 255).toInt().coerceIn(0, 255)
                     canvas.drawLine(centerX, centerY - halfH, centerX, centerY + halfH, beamCorePaint)
                 }
             }

@@ -436,11 +436,11 @@ class PhosphorOverdriveRenderer(
         if (t <= collapseRatio) {
             val c = (t / collapseRatio).coerceIn(0f, 1f)
 
-            // Stage 1: Vertical squash with selected coil resistance (0.0 -> 0.67)
-            // Stage 1.5: Distinct Slit Hold & Peak White Flash (0.67 -> 0.74)
-            // Stage 2: Fast-attack horizontal snap whip (0.74 -> 1.0)
-            val squashEnd = 0.67f
-            val slitHoldEnd = 0.74f
+            // Stage 1: Vertical squash with selected coil resistance (0.0 -> 0.60)
+            // Stage 1.5: Distinct Slit Hold & Peak White Flash (0.60 -> 0.66)
+            // Stage 2: Fast-attack horizontal snap whip into center dot (0.66 -> 1.0)
+            val squashEnd = 0.60f
+            val slitHoldEnd = 0.66f
             val flatLineThickness = 0.006f // Razor-thin slit
 
             val scaleX: Float
@@ -484,17 +484,17 @@ class PhosphorOverdriveRenderer(
                         val tension = kotlin.math.sin(strainedProgress * (Math.PI.toFloat() / 2f))
                         stretchAmount = maxStretch * tension
                     } else {
-                        // Phase 2: Snap Loose & Terminal Velocity Plunge
+                        // Phase 2: Snap Loose & Terminal Velocity Plunge into Bezel-Aligned Slit
                         val releaseProgress = ((u - uSnap) / (1.0f - uSnap)).coerceIn(0f, 1f)
                         val snapK = releaseProgress.pow(3.6f)
                         val startScale = 1.0f - 0.035f
 
                         if (style == CrtStyle.CLASSIC_HORIZONTAL) {
                             scaleY = startScale * (1.0f - snapK) + flatLineThickness * snapK
-                            scaleX = 1.09f * (1.0f - snapK) + 1.35f * snapK
+                            scaleX = 1.09f * (1.0f - snapK) + 1.0f * snapK
                         } else {
                             scaleX = startScale * (1.0f - snapK) + flatLineThickness * snapK
-                            scaleY = 1.09f * (1.0f - snapK) + 1.35f * snapK
+                            scaleY = 1.09f * (1.0f - snapK) + 1.0f * snapK
                         }
 
                         stretchAmount = maxStretch * (1.0f - releaseProgress.pow(2.2f))
@@ -503,37 +503,37 @@ class PhosphorOverdriveRenderer(
                     // Standard uniform scaling (linear collapse)
                     if (style == CrtStyle.CLASSIC_HORIZONTAL) {
                         scaleY = 1.0f - (p1 * (1.0f - flatLineThickness))
-                        scaleX = 1.0f + (p1 * 0.35f)
+                        scaleX = 1.0f + (kotlin.math.sin(p1 * Math.PI.toFloat()) * 0.10f)
                     } else {
                         scaleX = 1.0f - (p1 * (1.0f - flatLineThickness))
-                        scaleY = 1.0f + (p1 * 0.35f)
+                        scaleY = 1.0f + (kotlin.math.sin(p1 * Math.PI.toFloat()) * 0.10f)
                     }
                 }
 
                 alpha = 1.0f
                 aberrAmount = (0.35f * u + 0.65f * p1) * flashIntensity
             } else if (c <= slitHoldEnd) {
-                // Stage 1.5: 100% Fully squashed slit hold - burns with peak white flare
+                // Stage 1.5: 100% Fully squashed slit hold - burns with peak white flare (flush with bezels)
                 if (style == CrtStyle.CLASSIC_HORIZONTAL) {
                     scaleY = flatLineThickness
-                    scaleX = 1.35f
+                    scaleX = 1.0f
                 } else {
                     scaleX = flatLineThickness
-                    scaleY = 1.35f
+                    scaleY = 1.0f
                 }
                 alpha = 1.0f
                 aberrAmount = flashIntensity * 0.9f
             } else {
-                // Stage 2: Explosive horizontal snap whip into center dot
+                // Stage 2: Explosive horizontal snap whip into center dot starting cleanly from bezel edges
                 val snapProgress = ((c - slitHoldEnd) / (1.0f - slitHoldEnd)).coerceIn(0f, 1f)
                 val p2 = horizontalEase.getInterpolation(snapProgress)
 
                 if (style == CrtStyle.CLASSIC_HORIZONTAL) {
                     scaleY = flatLineThickness * (1.0f - p2)
-                    scaleX = 1.35f * (1.0f - p2)
+                    scaleX = (1.0f - p2).coerceAtLeast(0f)
                 } else {
                     scaleX = flatLineThickness * (1.0f - p2)
-                    scaleY = 1.35f * (1.0f - p2)
+                    scaleY = (1.0f - p2).coerceAtLeast(0f)
                 }
                 alpha = (1.0f - snapProgress).coerceIn(0f, 1f)
                 aberrAmount = (1.0f - snapProgress) * flashIntensity * 0.6f
