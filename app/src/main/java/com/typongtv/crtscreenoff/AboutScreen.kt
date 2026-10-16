@@ -450,7 +450,7 @@ fun AboutScreen(
                 }
             }
 
-            // ── Single-line v1.0 Rootless badge at very bottom with comfortable top padding ──
+            // ── Single-line v1.0.1 Rootless badge at very bottom with comfortable top padding ──
             Spacer(modifier = Modifier.height(20.dp))
             Row(
                 modifier = Modifier
@@ -465,7 +465,7 @@ fun AboutScreen(
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
                 ) {
                     Text(
-                        text = "CRT Screen-Off Engine • v1.0 Rootless",
+                        text = "CRT Screen-Off Engine • v1.0.1",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
