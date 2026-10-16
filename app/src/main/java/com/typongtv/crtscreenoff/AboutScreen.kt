@@ -215,7 +215,7 @@ fun AboutScreen(
                     )
 
                     Text(
-                        text = "Back in the golden era of Android (Android 2.3 Gingerbread through 4.0 Ice Cream Sandwich), Google and the legendary CyanogenMod community (CM7 / CM9) introduced the iconic CRT screen-off animation, handled natively in C++ inside Android's display compositor SurfaceFlinger (ElectronBeam.cpp).\n\n" +
+                        text = "During the early days of Android (Android 2.3+ and the classic CyanogenMod era), one visual touch captured everyone's imagination: the iconic CRT screen-off animation, handled natively inside Android's display compositor SurfaceFlinger (ElectronBeam.cpp).\n\n" +
                                 "As deflection coils collapsed the vertical sweep, the electron beam density flared into a searing horizontal razor line before vanishing into pure darkness. When newer Android releases retired this native effect, achieving it historically required device rooting, custom ROMs (CyanogenMod, Paranoid Android, AOKP), or running invasive framework-hooking tools that tripped Knox hardware fuses and broke SafetyNet / Play Integrity.\n\n" +
                                 "This project revives that beloved retro electron-beam experience completely rootless on Android 13 through Android 16+, combining official Android Accessibility APIs with high-performance hardware-accelerated rendering.",
                         fontSize = 14.sp,

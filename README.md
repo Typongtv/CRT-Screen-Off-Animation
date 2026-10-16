@@ -20,7 +20,7 @@
 
 ## Project Heritage & Lineage
 
-Back in the CM7 / CM9 days, the legendary **CyanogenMod community (CM7 / CM9)** introduced the iconic CRT screen-off animation, handled natively in C++ inside Android's display compositor SurfaceFlinger (`ElectronBeam.cpp`).
+During the early days of Android (Android 2.3+ and the classic CyanogenMod era), one visual touch captured everyone's imagination: the iconic **CRT screen-off animation**. Handled natively inside Android's display compositor (`ElectronBeam.cpp`), it gave touchscreens the tactile soul of an old cathode-ray television.
 
 As deflection coils collapsed the vertical sweep, the electron beam density flared into a searing horizontal razor line before vanishing into pure cathode darkness. When newer Android releases retired this native effect, achieving it historically required device rooting, custom ROMs, or invasive framework-hooking tools that tripped Knox hardware fuses and broke SafetyNet / Play Integrity.
 
