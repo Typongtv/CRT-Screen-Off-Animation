@@ -15,6 +15,29 @@ enum class CrtStyle {
     CLASSIC_VERTICAL    // Horizontal collapse to line -> Vertical snap to dot
 }
 
+enum class DeflectionDynamics(
+    val label: String,
+    val exponent: Float,
+    val timeMultiplier: Float,
+    val phaseSplit: Float,
+    val subtitle: String
+) {
+    STANDARD(
+        label = "Classic Standard",
+        exponent = 2.0f,
+        timeMultiplier = 0.70f,
+        phaseSplit = 0.72f,
+        subtitle = "Linear-quadratic collapse (2.0x) with immediate drop & snappy beam zip"
+    ),
+    STYLIZED_CREEP(
+        label = "Stylized Creep",
+        exponent = 4.5f,
+        timeMultiplier = 1.0f,
+        phaseSplit = 0.78f,
+        subtitle = "Viscous inductive drag (4.5x) with sustained creep & sudden razor plunge"
+    )
+}
+
 enum class CoilResistance(
     val label: String,
     val exponent: Float,
@@ -23,8 +46,8 @@ enum class CoilResistance(
     val subtitle: String
 ) {
     CLASSIC("Classic (2.0x)", 2.0f, 1.0f, 0.05f, "Familiar Gingerbread / retro quadratic feel"),
-    HEAVY("Heavy Inductance (4.0x)", 3.8f, 1.40f, 0.20f, "Heavy magnetic drag, viscous crawl & explosive drop"),
-    EXTREME("Extreme Tension (6.0x)", 5.5f, 1.85f, 0.32f, "Sustained magnetic struggle, deep slow creep & guillotine plunge")
+    HEAVY("Heavy Inductance (4.0x)", 4.6f, 1.50f, 0.20f, "Heavy magnetic drag, viscous crawl & explosive drop"),
+    EXTREME("Extreme Tension (6.0x)", 6.2f, 2.00f, 0.32f, "Sustained magnetic struggle, deep slow creep & guillotine plunge")
 }
 
 /**
@@ -53,6 +76,7 @@ class CrtView(
     private val coilResistance: CoilResistance = CoilResistance.EXTREME,
     private val enableMagneticStretch: Boolean = true,
     private val enableAnamorphicFlare: Boolean = true,
+    private val deflectionDynamics: DeflectionDynamics = DeflectionDynamics.STYLIZED_CREEP,
     private val onAnimationComplete: () -> Unit
 ) : View(context) {
 
@@ -60,13 +84,14 @@ class CrtView(
     private var animator: ValueAnimator? = null
     private var isCompleted = false
 
-    // Effective duration: coil inductance time multiplier scales the squashing resistance phase.
-    // When magnetic linear stretch is enabled, adds +20% duration padding to allow elastic strain to build momentum
+    // Effective duration:
+    // - In Enhanced Overdrive: coil inductance time multiplier & magnetic stretch dilation
+    // - In Cyanogen Retro: deflection dynamics time multiplier ensures standard collapse stays punchy with authentic beam zip
     private val effectiveDurationMs: Long = if (enhancedOverdrive) {
         val stretchBonus = if (enableMagneticStretch) 1.20f else 1.0f
         (durationMs.toFloat() * coilResistance.timeMultiplier * stretchBonus).toLong()
     } else {
-        durationMs
+        (durationMs.toFloat() * deflectionDynamics.timeMultiplier).toLong()
     }
 
     // Total duration: in classic mode it's durationMs; in enhanced mode it accounts for resistance time dilation & afterglow
@@ -93,7 +118,8 @@ class CrtView(
         CyanogenRenderer(
             screenBitmap = screenBitmap,
             style = style,
-            density = context.resources.displayMetrics.density
+            density = context.resources.displayMetrics.density,
+            deflectionDynamics = deflectionDynamics
         )
     }
 

@@ -89,7 +89,7 @@ If Google completely blocks the installation without an "Install anyway" button:
 2. Tap your **Profile icon** (top-right) ➔ Tap **Play Protect**.
 3. Tap the **gear icon** in the top-right corner.
 4. Temporarily toggle **OFF** *"Scan apps with Play Protect"*.
-5. Return to your file manager and install the APK (e.g., `CRT-Screen-Off-v1.0.1.apk`).
+5. Return to your file manager and install the APK (e.g., `CRT-Screen-Off-v1.1.0.apk`).
 6. *(Recommended)* Return to Play Protect settings and toggle scanning back **ON**.
 
 > **Note on Safety:** As verified in our open codebase and manifest, this application requests **0 internet permissions** (`android.permission.INTERNET` is not present). The app physically cannot connect to any server, collect data, or transmit information off your device.

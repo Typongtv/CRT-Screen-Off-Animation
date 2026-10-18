@@ -64,8 +64,8 @@ class CrtAccessibilityService : AccessibilityService() {
             return last
         }
         val metrics = resources.displayMetrics
-        val width = metrics.widthPixels.coerceAtLeast(1080)
-        val height = metrics.heightPixels.coerceAtLeast(1920)
+        val width = metrics.widthPixels
+        val height = metrics.heightPixels
         val fallback = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(fallback)
         canvas.drawColor(android.graphics.Color.BLACK)
@@ -154,11 +154,13 @@ class CrtAccessibilityService : AccessibilityService() {
         }
 
         val now = SystemClock.uptimeMillis()
+        val isTablet = resources.configuration.smallestScreenWidthDp >= 600
+        val defaultSpeed = if (isTablet) 600 else 700
         val enhancedOverdrive = prefs.getBoolean("enable_enhanced_overdrive", false)
         val durationMs = if (enhancedOverdrive) {
             prefs.getInt("anim_speed_overdrive", 500).toLong()
         } else {
-            prefs.getInt("anim_speed", 500).toLong()
+            prefs.getInt("anim_speed", defaultSpeed).toLong().coerceIn(400L, 1200L)
         }
         val afterglowMs = prefs.getInt("afterglow_duration", 800).toLong()
         val resistanceName = prefs.getString("coil_resistance", CoilResistance.HEAVY.name)
@@ -167,9 +169,19 @@ class CrtAccessibilityService : AccessibilityService() {
         } catch (_: Exception) {
             CoilResistance.HEAVY
         }
+        val dynamicsName = prefs.getString("deflection_dynamics", DeflectionDynamics.STYLIZED_CREEP.name)
+        val deflectionDynamics = try {
+            DeflectionDynamics.valueOf(dynamicsName ?: DeflectionDynamics.STYLIZED_CREEP.name)
+        } catch (_: Exception) {
+            DeflectionDynamics.STYLIZED_CREEP
+        }
         val enableMagneticStretch = prefs.getBoolean("enable_magnetic_stretch", false)
         val stretchBonus = if (enhancedOverdrive && enableMagneticStretch) 1.20f else 1.0f
-        val effectiveDurationMs = if (enhancedOverdrive) (durationMs.toFloat() * coilResistance.timeMultiplier * stretchBonus).toLong() else durationMs
+        val effectiveDurationMs = if (enhancedOverdrive) {
+            (durationMs.toFloat() * coilResistance.timeMultiplier * stretchBonus).toLong()
+        } else {
+            (durationMs.toFloat() * deflectionDynamics.timeMultiplier).toLong()
+        }
         val totalDurationMs = if (enhancedOverdrive && afterglowMs > 0L) (effectiveDurationMs + afterglowMs) else effectiveDurationMs
 
         val debounceLimit = (totalDurationMs + 400L).coerceIn(400L, 2500L)
@@ -233,6 +245,13 @@ class CrtAccessibilityService : AccessibilityService() {
             CoilResistance.HEAVY
         }
 
+        val dynamicsName = prefs.getString("deflection_dynamics", DeflectionDynamics.STYLIZED_CREEP.name)
+        val deflectionDynamics = try {
+            DeflectionDynamics.valueOf(dynamicsName ?: DeflectionDynamics.STYLIZED_CREEP.name)
+        } catch (_: Exception) {
+            DeflectionDynamics.STYLIZED_CREEP
+        }
+
         val enableMagneticStretch = prefs.getBoolean("enable_magnetic_stretch", false)
         val enableAnamorphicFlare = prefs.getBoolean("enable_anamorphic_flare", true)
 
@@ -247,6 +266,7 @@ class CrtAccessibilityService : AccessibilityService() {
             coilResistance = coilResistance,
             enableMagneticStretch = enableMagneticStretch,
             enableAnamorphicFlare = enableAnamorphicFlare,
+            deflectionDynamics = deflectionDynamics,
             onAnimationComplete = {
                 // 1. Trigger the native system lock screen action immediately
                 performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)

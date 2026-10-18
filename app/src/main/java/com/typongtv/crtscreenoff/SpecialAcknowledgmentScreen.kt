@@ -31,7 +31,8 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun SpecialAcknowledgmentScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    staggeredEntrance: Boolean = false
 ) {
     val scrollState = rememberScrollState()
     val density = LocalDensity.current.density
@@ -45,10 +46,15 @@ fun SpecialAcknowledgmentScreen(
         }
     }
 
-    // Physical CRT impact collision: screen stops dead on the left bezel at 260ms.
-    // The internal electron beam and shadow mask lose convergence, creating an intense chromatic split flicker.
+    // Physical CRT impact collision / card settle:
+    // When opening on phone, fires after 260ms slide hits the left bezel.
+    // In tablet mode right bay, fires after all staggered cards settle into place (~1150ms).
     LaunchedEffect(Unit) {
-        delay(260L) // Wait for the 260ms linear slide to strike the left wall
+        if (staggeredEntrance) {
+            delay(1150L) // Wait for all staggered cards in the right bay to settle
+        } else {
+            delay(260L) // Wait for the 260ms linear slide to strike the left wall
+        }
         // 1. Violent electron beam mis-convergence spike on impact
         chromaticSplitAnim.animateTo(1.0f, tween(45, easing = LinearEasing))
         // 2. High-energy flicker & twitch
@@ -126,128 +132,162 @@ fun SpecialAcknowledgmentScreen(
                     .verticalScroll(scrollState)
                     .padding(horizontal = 18.dp, vertical = 14.dp)
             ) {
-                // ── Big Bold Header outside Tribute Card (No background / No card) ──
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 2.dp, bottom = 12.dp, top = 2.dp)
-                ) {
-                    SparkleIcon(
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(9.dp))
-                    Text(
-                        text = "CO-ENGINEERED WITH GOOGLE ANTIGRAVITY",
-                        fontSize = 19.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        lineHeight = 24.sp,
-                        letterSpacing = 0.4.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                // ── Group 1: Header & Hero Tribute Card ──
+                StaggeredCard(index = 1, enabled = staggeredEntrance) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // ── Big Bold Header outside Tribute Card (No background / No card) ──
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 2.dp, bottom = 12.dp, top = 2.dp)
+                        ) {
+                            SparkleIcon(
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(9.dp))
+                            Text(
+                                text = "CO-ENGINEERED WITH GOOGLE ANTIGRAVITY",
+                                fontSize = 19.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                lineHeight = 24.sp,
+                                letterSpacing = 0.4.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
 
-                // ── Hero Tribute Card (#292929) ──
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 16.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF292929)),
-                    border = BorderStroke(1.dp, Color(0xFF3E3E3E))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(18.dp)
-                    ) {
-                        Text(
-                            text = "A Tribute to Retro Television History",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 17.sp,
-                            lineHeight = 21.sp,
-                            color = Color.White,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
+                        // ── Hero Tribute Card (#292929) ──
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF292929)),
+                            border = BorderStroke(1.dp, Color(0xFF3E3E3E))
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(18.dp)
+                            ) {
+                                Text(
+                                    text = "A Tribute to Retro Television History",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 17.sp,
+                                    lineHeight = 21.sp,
+                                    color = Color.White,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
 
-                        Text(
-                            text = "Proudly co-developed with Google Antigravity — translating analog electron-beam physics into hardware-accelerated AGSL runtime shaders at 120Hz.\n\n" +
-                                    "From mathematical deflection tuning to architecting a Knox-safe, zero-allocation pipeline on Android 16, this project stands as a tribute to retro television history co-crafted with next-generation AI.",
-                            fontSize = 14.sp,
-                            lineHeight = 20.sp,
-                            color = Color(0xFFCBD5E1)
-                        )
+                                Text(
+                                    text = "Proudly co-developed with Google Antigravity — translating analog electron-beam physics into hardware-accelerated AGSL runtime shaders at 120Hz.\n\n" +
+                                            "From mathematical deflection tuning to architecting a Knox-safe, zero-allocation pipeline on Android 16, this project stands as a tribute to retro television history co-crafted with next-generation AI.",
+                                    fontSize = 14.sp,
+                                    lineHeight = 20.sp,
+                                    color = Color(0xFFCBD5E1)
+                                )
+                            }
+                        }
                     }
                 }
 
-                // ── Section: Engineering Pillars ──
-                Text(
-                    text = "Co-Creation Milestones",
-                    fontSize = 16.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = 2.dp, bottom = 8.dp, top = 4.dp)
-                )
-
-                // Pillar 1: AGSL Shaders
-                AcknowledgmentPillarCard(
-                    title = "120Hz AGSL GPU Shader Engine",
-                    description = "Engineered real-time AGSL GPU runtime shaders to computationally model cathode tube curvature, dual-harmonic magnetic deflection resistance, dynamic scanline jitter, and rich phosphor afterglow."
-                )
-
-                // Pillar 2: Knox-Safe Rootless
-                AcknowledgmentPillarCard(
-                    title = "100% Knox-Safe & Rootless Execution",
-                    description = "Overcame modern Android 13–16+ security sandbox constraints by pairing official Android Accessibility APIs with a headless gesture trigger activity, ensuring zero root requirements and 100% Play Integrity preservation."
-                )
-
-                // Pillar 3: Zero-Allocation Pipeline
-                AcknowledgmentPillarCard(
-                    title = "Zero-Allocation Hardware Pipeline",
-                    description = "Pre-allocated Paint buffers, native Shaders, and Matrices across the rendering loop to guarantee fluid 60Hz, 90Hz, and 120Hz refresh rates with zero garbage-collection stutter."
-                )
-
-                // Pillar 4: Human-AI Collaboration
-                AcknowledgmentPillarCard(
-                    title = "Human Vision & AI Pair Programming",
-                    description = "From initial nostalgic concept to low-level byte buffers, matrix mathematics, and refined Jetpack Compose UI architecture, Google Antigravity served as the dedicated AI pair programmer bringing this vision into production reality."
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                // ── Bottom Credit Card ──
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-                    border = BorderStroke(1.dp, Color(0xFF2A2A2A))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
+                // ── Group 2: Milestones & Pillars 1-2 ──
+                StaggeredCard(index = 2, enabled = staggeredEntrance) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            text = "CRT Screen-Off Engine",
-                            fontSize = 18.sp,
+                            text = "Co-Creation Milestones",
+                            fontSize = 16.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
-                            textAlign = TextAlign.Center
+                            modifier = Modifier.padding(start = 2.dp, bottom = 8.dp, top = 4.dp)
                         )
-                        Text(
-                            text = "Crafted with human vision and next-generation intelligence.",
-                            fontSize = 12.5.sp,
-                            lineHeight = 15.sp,
-                            color = Color(0xFF6B7280),
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(top = 4.dp)
+
+                        // Pillar 1: AGSL Shaders
+                        AcknowledgmentPillarCard(
+                            title = "120Hz AGSL GPU Shader Engine",
+                            description = "Engineered real-time AGSL GPU runtime shaders to computationally model cathode tube curvature, dual-harmonic magnetic deflection resistance, dynamic scanline jitter, and rich phosphor afterglow."
+                        )
+
+                        // Pillar 2: Knox-Safe Rootless
+                        AcknowledgmentPillarCard(
+                            title = "100% Knox-Safe & Rootless Execution",
+                            description = "Overcame modern Android 13–16+ security sandbox constraints by pairing official Android Accessibility APIs with a headless gesture trigger activity, ensuring zero root requirements and 100% Play Integrity preservation."
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(28.dp))
+                // ── Group 3: Pillars 3-4 ──
+                StaggeredCard(index = 3, enabled = staggeredEntrance) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // Pillar 3: Zero-Allocation Pipeline
+                        AcknowledgmentPillarCard(
+                            title = "Zero-Allocation Hardware Pipeline",
+                            description = "Pre-allocated Paint buffers, native Shaders, and Matrices across the rendering loop to guarantee fluid 60Hz, 90Hz, and 120Hz refresh rates with zero garbage-collection stutter."
+                        )
+
+                        // Pillar 4: Human-AI Collaboration
+                        AcknowledgmentPillarCard(
+                            title = "Human Vision & AI Pair Programming",
+                            description = "From initial nostalgic concept to low-level byte buffers, matrix mathematics, and refined Jetpack Compose UI architecture, Google Antigravity served as the dedicated AI pair programmer bringing this vision into production reality."
+                        )
+                    }
+                }
+
+                // ── Group 4: Bottom Credit Card ──
+                StaggeredCard(index = 4, enabled = staggeredEntrance) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
+                            border = BorderStroke(1.dp, Color(0xFF2A2A2A))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "CRT Screen-Off Engine",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = "Crafted with human vision and next-generation intelligence.",
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 15.sp,
+                                    color = Color(0xFF6B7280),
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(28.dp))
+                    }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun StaggeredCard(
+    index: Int,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    if (enabled) {
+        CascadingEntrance(index = index, visible = true, modifier = modifier, content = content)
+    } else {
+        Box(modifier = modifier.fillMaxWidth()) {
+            content()
         }
     }
 }

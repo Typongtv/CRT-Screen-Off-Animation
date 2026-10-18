@@ -436,11 +436,11 @@ class PhosphorOverdriveRenderer(
         if (t <= collapseRatio) {
             val c = (t / collapseRatio).coerceIn(0f, 1f)
 
-            // Stage 1: Vertical squash with selected coil resistance (0.0 -> 0.60)
-            // Stage 1.5: Distinct Slit Hold & Peak White Flash (0.60 -> 0.66)
-            // Stage 2: Fast-attack horizontal snap whip into center dot (0.66 -> 1.0)
-            val squashEnd = 0.60f
-            val slitHoldEnd = 0.66f
+            // Stage 1: Vertical squash with selected coil resistance (0.0 -> 0.74)
+            // Stage 1.5: Distinct Slit Hold & Peak White Flash (0.74 -> 0.79)
+            // Stage 2: Fast-attack horizontal snap whip into center dot (0.79 -> 1.0)
+            val squashEnd = 0.74f
+            val slitHoldEnd = 0.79f
             val flatLineThickness = 0.006f // Razor-thin slit
 
             val scaleX: Float
@@ -452,7 +452,12 @@ class PhosphorOverdriveRenderer(
             if (c <= squashEnd) {
                 // Magnetic Coil Resistance: Viscous initial creep + high-inductance drop
                 val u = (c / squashEnd).coerceIn(0f, 1f)
-                val p1 = coilResistance.initialCreep * u + (1.0f - coilResistance.initialCreep) * u.pow(coilResistance.exponent)
+                // Felt creep lead-in: speed starts low at the very first frame and only ever increases (no early burst,
+                // no mid-way slow-down): a gentle u^1.25 term holds the image clinging to the edges, then the steep
+                // coil exponent snaps it loose into the slit.
+                val creepWeight = coilResistance.initialCreep.coerceAtLeast(0.12f)
+                val p1 = (creepWeight * u.pow(1.25f) + (1.0f - creepWeight) * u.pow(coilResistance.exponent)).coerceIn(0f, 1f)
+                val droopMax = 0.06f
 
                 if (enableMagneticStretch) {
                     val uSnap = when (coilResistance) {
@@ -471,7 +476,8 @@ class PhosphorOverdriveRenderer(
                         // Phase 1: Edge Hang & Wormhole Suction Struggle
                         val hangProgress = (u / uSnap).coerceIn(0f, 1f)
                         val strainedProgress = 1.0f - (1.0f - hangProgress).pow(2.2f)
-                        val edgeDroop = 0.035f * hangProgress.pow(2.0f)
+                        // Edge droop accelerates from the first frame (slow creep clinging to the edges) toward the snap point
+                        val edgeDroop = droopMax * hangProgress.pow(1.5f)
 
                         if (style == CrtStyle.CLASSIC_HORIZONTAL) {
                             scaleY = 1.0f - edgeDroop
@@ -487,7 +493,7 @@ class PhosphorOverdriveRenderer(
                         // Phase 2: Snap Loose & Terminal Velocity Plunge into Bezel-Aligned Slit
                         val releaseProgress = ((u - uSnap) / (1.0f - uSnap)).coerceIn(0f, 1f)
                         val snapK = releaseProgress.pow(3.6f)
-                        val startScale = 1.0f - 0.035f
+                        val startScale = 1.0f - droopMax
 
                         if (style == CrtStyle.CLASSIC_HORIZONTAL) {
                             scaleY = startScale * (1.0f - snapK) + flatLineThickness * snapK

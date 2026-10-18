@@ -31,7 +31,8 @@ import kotlin.math.pow
 class CyanogenRenderer(
     private val screenBitmap: Bitmap,
     private val style: CrtStyle = CrtStyle.CLASSIC_HORIZONTAL,
-    private val density: Float = 2.5f
+    private val density: Float = 2.5f,
+    private val deflectionDynamics: DeflectionDynamics = DeflectionDynamics.STYLIZED_CREEP
 ) : CrtRenderer {
 
     // Pre-allocated paints for zero-allocation 60/120fps rendering
@@ -48,12 +49,12 @@ class CyanogenRenderer(
     private val beamCorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.WHITE
         style = Paint.Style.STROKE
-        strokeCap = Paint.Cap.ROUND
+        strokeCap = Paint.Cap.BUTT
     }
     private val beamHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.argb(180, 140, 232, 255) // Electric cyan #8CE8FF
         style = Paint.Style.STROKE
-        strokeCap = Paint.Cap.ROUND
+        strokeCap = Paint.Cap.BUTT
         xfermode = PorterDuffXfermode(PorterDuff.Mode.ADD)
     }
 
@@ -147,29 +148,34 @@ class CyanogenRenderer(
         val centerX = w / 2f
         val centerY = h / 2f
 
-        // Timeline Split: 0.58f allocates 58% to viscous vertical drop and 42% dedicated to fluid horizontal zip
-        val phaseSplit = 0.58f
+        // Dynamic timeline split: standard collapse gives 72% for instant quad collapse, stylized creep gives 78%
+        val phaseSplit = deflectionDynamics.phaseSplit
+
+        // Fully dark final frame: nothing remains of the beam at the end of the timeline
+        if (t >= 1.0f) return
 
         if (t <= phaseSplit) {
             // ── Phase 1: Vertical Deflection Collapse into Blazing Razor Slit ──
             val u = (t / phaseSplit).coerceIn(0f, 1f)
-            // Calibrated resistance curve:
-            // At u=0.30: 1.5% drop (visibly clings to top/bottom bezels)
-            // At u=0.60: 14.0% drop (viscous sluggish struggle against coils)
-            // From u=0.70 (25% drop) -> 1.00: violently breaks free & plunges into razor slit
-            val p1 = (0.16f * u.pow(2.2f) + 0.84f * u.pow(4.4f)).coerceIn(0f, 1f)
+            // Easing profile:
+            // - STANDARD: classic quadratic collapse (u^2.0) dropping immediately from frame 1
+            // - STYLIZED_CREEP: slow inductive creep clinging to bezels before terminal plunge
+            val p1 = when (deflectionDynamics) {
+                DeflectionDynamics.STANDARD -> u.pow(2.0f).coerceIn(0f, 1f)
+                DeflectionDynamics.STYLIZED_CREEP -> (0.14f * u.pow(1.2f) + 0.86f * u.pow(4.5f)).coerceIn(0f, 1f)
+            }
 
             val scaleX: Float
             val scaleY: Float
             when (style) {
                 CrtStyle.CLASSIC_HORIZONTAL -> {
                     scaleY = 1.0f - (p1 * 0.992f)
-                    // Flare gently during squish (barrel compression), settling to exactly 1.0f at razor collapse so horizontal zip starts at bezel edges
-                    scaleX = 1.0f + (kotlin.math.sin(p1 * Math.PI.toFloat()) * 0.12f)
+                    // No horizontal breathing: width stays locked so the zip begins exactly at the bezel edges
+                    scaleX = 1.0f
                 }
                 CrtStyle.CLASSIC_VERTICAL -> {
                     scaleX = 1.0f - (p1 * 0.992f)
-                    scaleY = 1.0f + (kotlin.math.sin(p1 * Math.PI.toFloat()) * 0.12f)
+                    scaleY = 1.0f
                 }
             }
 
@@ -255,21 +261,20 @@ class CyanogenRenderer(
             // ── Phase 2: Radiant Beam Zip & Needle-Point Dissipation into Pure Darkness ──
             val zipT = ((t - phaseSplit) / (1f - phaseSplit)).coerceIn(0f, 1f)
 
-            // Smooth organic deceleration: travels from bezels, easing smoothly to zero without terminal bounce
-            val easeZip = 1.0f - (1.0f - zipT).pow(2.4f)
-            val beamLengthFraction = (1.0f - easeZip).coerceIn(0f, 1f)
+            // Quick ease-out collapse: fast shrink from the bezels, then a needle that vanishes at the center (no dot, no bounce)
+            val beamLengthFraction = (1.0f - zipT).pow(2.2f).coerceIn(0f, 1f)
 
-            // Proportional thickness taper: stroke width pinches down to a microscopic sub-pixel thread
-            val taper = (1.0f - zipT).coerceIn(0f, 1f).pow(0.55f)
-            val haloStroke = (4.5f * density) * taper
-            val coreStroke = (2.0f * density) * taper
+            // Dissipation envelope tied to the beam LENGTH (not time): brightness only fades once it is a short needle
+            val fadeX = (beamLengthFraction / 0.15f).coerceIn(0f, 1f)
+            val envelope = fadeX * fadeX * (3f - 2f * fadeX)
 
-            // Filament maintains solid radiant luminosity throughout zip, dissolving in the final 8%
-            val beamAlpha = if (zipT > 0.92f) {
-                (1.0f - ((zipT - 0.92f) / 0.08f)).coerceIn(0f, 1f)
-            } else {
-                1.0f
-            }
+            // Thickness starts matched to the phase-1 razor slab (no pop at hand-off) and tapers with the length
+            val slabPx = (if (style == CrtStyle.CLASSIC_HORIZONTAL) h else w) * 0.008f
+            val taper = beamLengthFraction.pow(0.5f) * envelope
+            val haloStroke = maxOf(4.5f * density, slabPx * 0.9f) * taper
+            val coreStroke = maxOf(2.0f * density, slabPx * 0.6f) * taper
+
+            val beamAlpha = envelope
 
             if (beamLengthFraction > 0.001f && beamAlpha > 0.01f && coreStroke > 0.05f) {
                 if (style == CrtStyle.CLASSIC_HORIZONTAL) {

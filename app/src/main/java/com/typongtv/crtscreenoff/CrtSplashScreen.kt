@@ -12,6 +12,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -316,6 +317,7 @@ fun CrtSplashScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth(0.72f)
+                    .widthIn(max = 560.dp)
                     .wrapContentHeight()
                     .graphicsLayer {
                         translationX = shakeX
@@ -438,9 +440,14 @@ fun CrtSplashScreen(
                     )
                 }
 
+                // Screen-size calibrated beam span: On phone, spans full display (~380dp).
+                // On widescreen tablet, calibrated to 660dp to perfectly frame the 560dp logo,
+                // eliminating supersonic beam velocity while preserving the exact timeline choreography.
+                val maxBeamSpan = minOf(size.width, 660.dp.toPx())
+
                 // Laser horizontal beam slit expansion (Phase 1 ignition)
                 if (ignitionSlitWidth > 0.01f) {
-                    val halfWidth = (size.width / 2f) * ignitionSlitWidth
+                    val halfWidth = (maxBeamSpan / 2f) * ignitionSlitWidth
                     val slitBrush = Brush.horizontalGradient(
                         colors = listOf(
                             Color.Transparent,
@@ -470,7 +477,7 @@ fun CrtSplashScreen(
 
                 // Laser horizontal beam slit collapse (Phase 4 symmetrical reverse)
                 if (collapseSlitWidth > 0.005f) {
-                    val halfWidth = (size.width / 2f) * collapseSlitWidth
+                    val halfWidth = (maxBeamSpan / 2f) * collapseSlitWidth
                     val slitBrush = Brush.horizontalGradient(
                         colors = listOf(
                             Color.Transparent,

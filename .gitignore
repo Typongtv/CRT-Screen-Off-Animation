@@ -44,7 +44,8 @@ captures/
 # Temporary diffs, logs & backups
 diff_*.txt
 diff_main.txt
-CRTScreenOff/
+/CRTScreenOff/
 *.log
 *.tmp
 *.bak
+TABLET_SUPPORT_IMPLEMENTATION_PLAN.md

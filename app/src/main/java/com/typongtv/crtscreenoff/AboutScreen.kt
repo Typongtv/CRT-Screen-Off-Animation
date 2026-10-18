@@ -41,7 +41,8 @@ import kotlin.math.sin
 
 @Composable
 fun AboutScreen(
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    staggeredEntrance: Boolean = false
 ) {
     val scrollState = rememberScrollState()
     val density = LocalDensity.current.density
@@ -55,10 +56,15 @@ fun AboutScreen(
         }
     }
 
-    // Physical CRT impact collision: screen stops dead on the left bezel at 260ms.
-    // The internal electron beam and shadow mask lose convergence, creating an intense chromatic split flicker.
+    // Physical CRT impact collision / card settle:
+    // When opening on phone, fires after 260ms slide hits the left bezel.
+    // In tablet mode right bay, fires after all staggered cards settle into place (~1150ms).
     LaunchedEffect(Unit) {
-        delay(260L) // Wait for the 260ms linear slide to strike the left wall
+        if (staggeredEntrance) {
+            delay(1150L) // Wait for all staggered cards in the right bay to settle
+        } else {
+            delay(260L) // Wait for the 260ms linear slide to strike the left wall
+        }
         // 1. Violent electron beam mis-convergence spike on impact
         chromaticSplitAnim.animateTo(1.0f, tween(45, easing = LinearEasing))
         // 2. High-energy flicker & twitch
@@ -137,14 +143,15 @@ fun AboutScreen(
                 .padding(horizontal = 18.dp, vertical = 14.dp)
         ) {
             // ── Hero Banner ──
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
-                border = BorderStroke(1.dp, Color(0xFF333333))
-            ) {
+            StaggeredCard(index = 1, enabled = staggeredEntrance) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
+                    border = BorderStroke(1.dp, Color(0xFF333333))
+                ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -194,289 +201,326 @@ fun AboutScreen(
                     )
                 }
             }
+        }
 
             // ── Section 1: Project Origins & Lineage ──
-            AboutSectionHeader(title = "Origins & Heritage")
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
-                border = BorderStroke(1.dp, Color(0xFF383838))
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = "Inspired by CyanogenMod's ElectronBeam Legacy",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 16.sp,
-                        lineHeight = 20.sp,
-                        color = Color.White
-                    )
+            StaggeredCard(index = 2, enabled = staggeredEntrance) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    AboutSectionHeader(title = "Origins & Heritage")
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                        border = BorderStroke(1.dp, Color(0xFF383838))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "Inspired by CyanogenMod's ElectronBeam Legacy",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp,
+                                lineHeight = 20.sp,
+                                color = Color.White
+                            )
 
-                    Text(
-                        text = "During the early days of Android (Android 2.3+ and the classic CyanogenMod era), one visual touch captured everyone's imagination: the iconic CRT screen-off animation, handled natively inside Android's display compositor SurfaceFlinger (ElectronBeam.cpp).\n\n" +
-                                "As deflection coils collapsed the vertical sweep, the electron beam density flared into a searing horizontal razor line before vanishing into pure darkness. When newer Android releases retired this native effect, achieving it historically required device rooting, custom ROMs (CyanogenMod, Paranoid Android, AOKP), or running invasive framework-hooking tools that tripped Knox hardware fuses and broke SafetyNet / Play Integrity.\n\n" +
-                                "This project revives that beloved retro electron-beam experience completely rootless on Android 13 through Android 16+, combining official Android Accessibility APIs with high-performance hardware-accelerated rendering.",
-                        fontSize = 14.sp,
-                        lineHeight = 19.5.sp,
-                        color = Color(0xFFCBD5E1),
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
+                            Text(
+                                text = "During the early days of Android (Android 2.3+ and the classic CyanogenMod era), one visual touch captured everyone's imagination: the iconic CRT screen-off animation, handled natively inside Android's display compositor SurfaceFlinger (ElectronBeam.cpp).\n\n" +
+                                        "As deflection coils collapsed the vertical sweep, the electron beam density flared into a searing horizontal razor line before vanishing into pure darkness. When newer Android releases retired this native effect, achieving it historically required device rooting, custom ROMs (CyanogenMod, Paranoid Android, AOKP), or running invasive framework-hooking tools that tripped Knox hardware fuses and broke SafetyNet / Play Integrity.\n\n" +
+                                        "This project revives that beloved retro electron-beam experience completely rootless on Android 13 through Android 16+, combining official Android Accessibility APIs with high-performance hardware-accelerated rendering.",
+                                fontSize = 14.sp,
+                                lineHeight = 19.5.sp,
+                                color = Color(0xFFCBD5E1),
+                                modifier = Modifier.padding(top = 6.dp)
+                            )
+                        }
+                    }
                 }
             }
 
             // ── Section 2: Project Objective ──
-            AboutSectionHeader(title = "Project Objective")
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
-                border = BorderStroke(1.dp, Color(0xFF383838))
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = "Bridging Vintage CRT Charm with Modern Android Security",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 16.sp,
-                        lineHeight = 20.sp,
-                        color = Color.White
-                    )
+            StaggeredCard(index = 3, enabled = staggeredEntrance) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    AboutSectionHeader(title = "Project Objective")
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                        border = BorderStroke(1.dp, Color(0xFF383838))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "Bridging Vintage CRT Charm with Modern Android Security",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp,
+                                lineHeight = 20.sp,
+                                color = Color.White
+                            )
 
-                    Text(
-                        text = "Modern versions of Android (Android 13 through Android 16+) possess stringent security sandbox protections that previously rendered framework-hooked screen-off animations obsolete. The objective of this project is twofold:\n\n" +
-                                "1. Complete Rootless Execution: Seamlessly capture the active screen and trigger the display sleep action using official Android Accessibility APIs, ensuring 100% Knox/Play Integrity safety with zero root permissions.\n\n" +
-                                "2. Dual-Engine Fidelity: Deliver a CyanogenMod-inspired Retro CRT engine calibrated with realistic vertical magnetic cling, directional true-color smear, and delayed crescendo flare, alongside an ultra-sophisticated, physics-based Enhanced Phosphor Overdrive engine engineered with modern AGSL GPU shaders and cathode afterglow.",
-                        fontSize = 14.sp,
-                        lineHeight = 19.5.sp,
-                        color = Color(0xFFCBD5E1),
-                        modifier = Modifier.padding(top = 6.dp)
-                    )
+                            Text(
+                                text = "Modern versions of Android (Android 13 through Android 16+) possess stringent security sandbox protections that previously rendered framework-hooked screen-off animations obsolete. The objective of this project is twofold:\n\n" +
+                                        "1. Complete Rootless Execution: Seamlessly capture the active screen and trigger the display sleep action using official Android Accessibility APIs, ensuring 100% Knox/Play Integrity safety with zero root permissions.\n\n" +
+                                        "2. Dual-Engine Fidelity: Deliver a CyanogenMod-inspired Retro CRT engine calibrated with realistic vertical magnetic cling, directional true-color smear, and delayed crescendo flare, alongside an ultra-sophisticated, physics-based Enhanced Phosphor Overdrive engine engineered with modern AGSL GPU shaders and cathode afterglow.",
+                                fontSize = 14.sp,
+                                lineHeight = 19.5.sp,
+                                color = Color(0xFFCBD5E1),
+                                modifier = Modifier.padding(top = 6.dp)
+                            )
+                        }
+                    }
                 }
             }
 
             // ── Section 3: Dual Animation Engines ──
-            AboutSectionHeader(title = "Dual Animation Engines")
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
-                border = BorderStroke(1.dp, Color(0xFF383838))
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    // Engine 1
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0xFF383838),
-                            modifier = Modifier.size(26.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("1", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            StaggeredCard(index = 4, enabled = staggeredEntrance) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    AboutSectionHeader(title = "Dual Animation Engines")
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                        border = BorderStroke(1.dp, Color(0xFF383838))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            // Engine 1
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = Color(0xFF383838),
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("1", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "CyanogenMod Retro CRT Engine",
+                                    fontSize = 15.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFE2E8F0)
+                                )
                             }
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "CyanogenMod Retro CRT Engine",
-                            fontSize = 15.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFE2E8F0)
-                        )
-                    }
-                    Text(
-                        text = "• Inspired by CyanogenMod (CM7 / CM9 / AOSP Gingerbread & ICS) SurfaceFlinger ElectronBeam.\n" +
-                                "• Dual-harmonic magnetic resistance curve with distinct bezel cling (1.5% drop at 30%, 14% at 60%) snapping into terminal-velocity collapse.\n" +
-                                "• Multi-tap true-color directional smear along the collapse vector with subtle optical chromatic fringe.\n" +
-                                "• Delayed crescendo phosphor flare with additive wash peaking as the raster flattens, followed by a clean horizontal beam zip into extinction.",
-                        fontSize = 13.5.sp,
-                        lineHeight = 18.sp,
-                        color = Color(0xFF94A3B8),
-                        modifier = Modifier.padding(start = 34.dp, top = 4.dp, bottom = 12.dp)
-                    )
+                            Text(
+                                text = "• Inspired by CyanogenMod (CM7 / CM9 / AOSP Gingerbread & ICS) SurfaceFlinger ElectronBeam.\n" +
+                                        "• Dual-harmonic magnetic resistance curve with distinct bezel cling (1.5% drop at 30%, 14% at 60%) snapping into terminal-velocity collapse.\n" +
+                                        "• Multi-tap true-color directional smear along the collapse vector with subtle optical chromatic fringe.\n" +
+                                        "• Delayed crescendo phosphor flare with additive wash peaking as the raster flattens, followed by a clean horizontal beam zip into extinction.",
+                                fontSize = 13.5.sp,
+                                lineHeight = 18.sp,
+                                color = Color(0xFF94A3B8),
+                                modifier = Modifier.padding(start = 34.dp, top = 4.dp, bottom = 12.dp)
+                            )
 
-                    HorizontalDivider(color = Color(0xFF2E2E2E), thickness = 0.8.dp)
-                    Spacer(modifier = Modifier.height(10.dp))
+                            HorizontalDivider(color = Color(0xFF2E2E2E), thickness = 0.8.dp)
+                            Spacer(modifier = Modifier.height(10.dp))
 
-                    // Engine 2
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.size(26.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text("2", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            // Engine 2
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("2", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Enhanced Phosphor Overdrive Engine",
+                                    fontSize = 15.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
+                            Text(
+                                text = "• AGSL GPU Runtime Shaders (Android 13+) rendering true physical CRT optics in real-time.\n" +
+                                        "• Simulated electron deflection yoke with realistic electromagnetic inductance and resistance.\n" +
+                                        "• Spherical cathode tube curvature, RGB prism chromatic split, and dynamic scanline combing.\n" +
+                                        "• Lingering cathode phosphor persistence that stays visible after the screen turns pitch-black.",
+                                fontSize = 13.5.sp,
+                                lineHeight = 18.sp,
+                                color = Color(0xFF94A3B8),
+                                modifier = Modifier.padding(start = 34.dp, top = 4.dp)
+                            )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Enhanced Phosphor Overdrive Engine",
-                            fontSize = 15.5.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
                     }
-                    Text(
-                        text = "• AGSL GPU Runtime Shaders (Android 13+) rendering true physical CRT optics in real-time.\n" +
-                                "• Simulated electron deflection yoke with realistic electromagnetic inductance and resistance.\n" +
-                                "• Spherical cathode tube curvature, RGB prism chromatic split, and dynamic scanline combing.\n" +
-                                "• Lingering cathode phosphor persistence that stays visible after the screen turns pitch-black.",
-                        fontSize = 13.5.sp,
-                        lineHeight = 18.sp,
-                        color = Color(0xFF94A3B8),
-                        modifier = Modifier.padding(start = 34.dp, top = 4.dp)
-                    )
                 }
             }
 
             // ── Section 4: All Current Features ──
-            AboutSectionHeader(title = "Comprehensive Feature Suite")
+            StaggeredCard(index = 5, enabled = staggeredEntrance) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    AboutSectionHeader(title = "Comprehensive Feature Suite")
 
-            // Feature 1
-            FeatureDetailCard(
-                category = "PHYSICS & OPTICS",
-                title = "3-Level Magnetic Coil Resistance",
-                description = "Simulates the physical inductive drag of copper deflection coils:\n" +
-                        "• Classic (2.0x): Smooth quadratic collapse for the familiar retro Gingerbread feel.\n" +
-                        "• Heavy Inductance (4.0x): Viscous magnetic crawl, heavy initial resistance, and explosive release.\n" +
-                        "• Extreme Tension (6.0x): Sustained magnetic struggle, deep slow creep, and sudden guillotine plunge."
-            )
-
-            // Feature 2
-            FeatureDetailCard(
-                category = "OPTICS & SHADERS",
-                title = "AGSL GPU Chromatic Aberration & Optics",
-                description = "Hardware-accelerated shader pipeline running on the device GPU:\n" +
-                        "• Exaggerated Red-Up / Cyan-Down vertical beam splitting as deflection coils collapse.\n" +
-                        "• Dynamic vertical squish motion blur.\n" +
-                        "• H-Sync horizontal scanline combing jitter and phosphor streak smear."
-            )
-
-            // Feature 3
-            FeatureDetailCard(
-                category = "GEOMETRY",
-                title = "Magnetic Linear Stretch (Elastic Tension)",
-                description = "Screen borders cling tenaciously to the device bezels while the center contents pull inward into the equator before elastically snapping free, reproducing true analog vacuum tube behavior."
-            )
-
-            // Feature 4
-            FeatureDetailCard(
-                category = "LIGHT & PLASMA",
-                title = "Anamorphic Chromatic Flare (Prism Split)",
-                description = "Blinding 95% incandescent white beam flanked by cyan prism halos, featuring dynamic center swell and a glowing cathode bridge as the electron gun powers down."
-            )
-
-            // Feature 5
-            FeatureDetailCard(
-                category = "LUMINESCENCE",
-                title = "Flare & Bloom Overdrive Control",
-                description = "Fully customizable flash intensity slider ranging from subtle (0%) to dramatic standard (100%) up to blinding Supernova (150%) peak electron burst."
-            )
-
-            // Feature 6
-            FeatureDetailCard(
-                category = "AFTERGLOW",
-                title = "Independent Cathode Dot Afterglow",
-                description = "True phosphor decay persistence lasting from 100ms to 1500ms. The glowing center dot lingers isolated on the pitch-black OLED glass display after the raster collapses."
-            )
-
-            // Feature 7
-            FeatureDetailCard(
-                category = "ORIENTATION & SPEED",
-                title = "Direction & Timing Customization",
-                description = "Toggle between Classic Horizontal (vertical collapse to horizontal slit -> horizontal snap) and Classic Vertical (curtain style) with fine duration tuning between 300ms and 1000ms."
-            )
-
-            // Feature 8
-            FeatureDetailCard(
-                category = "AUTOMATION & INTEGRATION",
-                title = "Universal Gesture Integration (LockTriggerActivity)",
-                description = "Dedicated zero-UI trigger activity enabling seamless invocation from:\n" +
-                        "• Samsung Good Lock & One Hand Operation +\n" +
-                        "• Google Pixel Quick Tap (back tap)\n" +
-                        "• Motorola Double Tap Back gestures\n" +
-                        "• Xiaomi / HyperOS gesture shortcuts\n" +
-                        "• Edge Gestures & Fluid Navigation Gestures (FNG)\n" +
-                        "• Good Lock RegiStar, Key Remappers, and automation tools (Tasker, MacroDroid)."
-            )
-
-            // Feature 9
-            FeatureDetailCard(
-                category = "PERFORMANCE",
-                title = "Zero-Allocation Hardware Pipeline",
-                description = "Pre-allocated Paint objects, Shaders, and Matrices with zero memory allocations during draw frames, ensuring fluid 60Hz, 90Hz, and 120Hz refresh rates with zero frame drops."
-            )
-
-            // Feature 10
-            FeatureDetailCard(
-                category = "CONVENIENCE",
-                title = "Per-Section Restore to Default",
-                description = "Instant single-tap restoration buttons on each configuration card to easily reset back to factory values at any moment."
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ── Footer / Acknowledgments ──
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-                border = BorderStroke(1.dp, Color(0xFF2A2A2A))
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Crafted with Jetpack Compose & AGSL Shaders",
-                        fontSize = 13.5.sp,
-                        fontWeight = FontWeight.Medium,
-                        lineHeight = 16.sp,
-                        color = Color(0xFF94A3B8)
+                    // Feature 1
+                    FeatureDetailCard(
+                        category = "PHYSICS & OPTICS",
+                        title = "3-Level Magnetic Coil Resistance",
+                        description = "Simulates the physical inductive drag of copper deflection coils:\n" +
+                                "• Classic (2.0x): Smooth quadratic collapse for the familiar retro Gingerbread feel.\n" +
+                                "• Heavy Inductance (4.0x): Viscous magnetic crawl, heavy initial resistance, and explosive release.\n" +
+                                "• Extreme Tension (6.0x): Sustained magnetic struggle, deep slow creep, and sudden guillotine plunge."
                     )
-                    Text(
-                        text = "Dedicated to retro CRT television lovers & Android enthusiasts.",
-                        fontSize = 12.sp,
-                        lineHeight = 14.sp,
-                        color = Color(0xFF6B7280),
-                        modifier = Modifier.padding(top = 1.dp)
+
+                    // Feature 2
+                    FeatureDetailCard(
+                        category = "OPTICS & SHADERS",
+                        title = "AGSL GPU Chromatic Aberration & Optics",
+                        description = "Hardware-accelerated shader pipeline running on the device GPU:\n" +
+                                "• Exaggerated Red-Up / Cyan-Down vertical beam splitting as deflection coils collapse.\n" +
+                                "• Dynamic vertical squish motion blur.\n" +
+                                "• H-Sync horizontal scanline combing jitter and phosphor streak smear."
+                    )
+
+                    // Feature 3
+                    FeatureDetailCard(
+                        category = "GEOMETRY",
+                        title = "Magnetic Linear Stretch (Elastic Tension)",
+                        description = "Screen borders cling tenaciously to the device bezels while the center contents pull inward into the equator before elastically snapping free, reproducing true analog vacuum tube behavior."
+                    )
+
+                    // Feature 4
+                    FeatureDetailCard(
+                        category = "LIGHT & PLASMA",
+                        title = "Anamorphic Chromatic Flare (Prism Split)",
+                        description = "Blinding 95% incandescent white beam flanked by cyan prism halos, featuring dynamic center swell and a glowing cathode bridge as the electron gun powers down."
+                    )
+
+                    // Feature 5
+                    FeatureDetailCard(
+                        category = "LUMINESCENCE",
+                        title = "Flare & Bloom Overdrive Control",
+                        description = "Fully customizable flash intensity slider ranging from subtle (0%) to dramatic standard (100%) up to blinding Supernova (150%) peak electron burst."
+                    )
+
+                    // Feature 6
+                    FeatureDetailCard(
+                        category = "AFTERGLOW",
+                        title = "Independent Cathode Dot Afterglow",
+                        description = "True phosphor decay persistence lasting from 100ms to 1500ms. The glowing center dot lingers isolated on the pitch-black OLED glass display after the raster collapses."
+                    )
+
+                    // Feature 7
+                    FeatureDetailCard(
+                        category = "ORIENTATION & SPEED",
+                        title = "Direction & Timing Customization",
+                        description = "Toggle between Classic Horizontal (vertical collapse to horizontal slit -> horizontal snap) and Classic Vertical (curtain style) with fine duration tuning between 400ms and 1200ms."
+                    )
+
+                    // Feature 8
+                    FeatureDetailCard(
+                        category = "AUTOMATION & INTEGRATION",
+                        title = "Universal Gesture Integration (LockTriggerActivity)",
+                        description = "Dedicated zero-UI trigger activity enabling seamless invocation from:\n" +
+                                "• Samsung Good Lock & One Hand Operation +\n" +
+                                "• Google Pixel Quick Tap (back tap)\n" +
+                                "• Motorola Double Tap Back gestures\n" +
+                                "• Xiaomi / HyperOS gesture shortcuts\n" +
+                                "• Edge Gestures & Fluid Navigation Gestures (FNG)\n" +
+                                "• Good Lock RegiStar, Key Remappers, and automation tools (Tasker, MacroDroid)."
+                    )
+
+                    // Feature 9
+                    FeatureDetailCard(
+                        category = "PERFORMANCE",
+                        title = "Zero-Allocation Hardware Pipeline",
+                        description = "Pre-allocated Paint objects, Shaders, and Matrices with zero memory allocations during draw frames, ensuring fluid 60Hz, 90Hz, and 120Hz refresh rates with zero frame drops."
+                    )
+
+                    // Feature 10
+                    FeatureDetailCard(
+                        category = "CONVENIENCE",
+                        title = "Per-Section Restore to Default",
+                        description = "Instant single-tap restoration buttons on each configuration card to easily reset back to factory values at any moment."
                     )
                 }
             }
 
-            // ── Single-line v1.0.1 Rootless badge at very bottom with comfortable top padding ──
-            Spacer(modifier = Modifier.height(20.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 28.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
-                ) {
-                    Text(
-                        text = "CRT Screen-Off Engine • v1.0.1",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                    )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ── Section 5: Footer / Acknowledgments ──
+            StaggeredCard(index = 6, enabled = staggeredEntrance) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
+                        border = BorderStroke(1.dp, Color(0xFF2A2A2A))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Crafted with Jetpack Compose & AGSL Shaders",
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                lineHeight = 16.sp,
+                                color = Color(0xFF94A3B8)
+                            )
+                            Text(
+                                text = "Dedicated to retro CRT television lovers & Android enthusiasts.",
+                                fontSize = 12.sp,
+                                lineHeight = 14.sp,
+                                color = Color(0xFF6B7280),
+                                modifier = Modifier.padding(top = 1.dp)
+                            )
+                        }
+                    }
+
+                    // ── Single-line v1.0.1 Rootless badge at very bottom with comfortable top padding ──
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 28.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                        ) {
+                            Text(
+                                text = "CRT Screen-Off Engine • v1.1.0",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 
 }
+}
+
+@Composable
+private fun StaggeredCard(
+    index: Int,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    if (enabled) {
+        CascadingEntrance(index = index, visible = true, modifier = modifier, content = content)
+    } else {
+        Box(modifier = modifier.fillMaxWidth()) {
+            content()
+        }
+    }
 }
 
 @Composable
