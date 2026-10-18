@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/badge/Root-100%25%20Rootless-brightgreen?style=flat-square" alt="Rootless" />
   <img src="https://img.shields.io/badge/GPU-AGSL%20RuntimeShader-blueviolet?style=flat-square" alt="AGSL" />
   <img src="https://img.shields.io/badge/Knox%20%2F%20SafetyNet-100%25%20Safe-success?style=flat-square" alt="SafetyNet Safe" />
+  <a href="https://www.reddit.com/user/typongtv/"><img src="https://img.shields.io/badge/Reddit-u%2FTypongtv-FF4500?style=flat-square&logo=reddit&logoColor=white" alt="Reddit" /></a>
   <img src="https://img.shields.io/badge/License-All%20Rights%20Reserved-red?style=flat-square" alt="License" />
 </p>
 
@@ -136,6 +137,13 @@ cd CRT-Screen-Off-Animation
 ```
 The compiled APK will be output to:
 `app/build/outputs/apk/release/`
+
+---
+
+## Community & Feedback
+
+- **Feedback & Feature Requests:** Have questions, ideas, or feedback? Connect on Reddit via [u/Typongtv](https://www.reddit.com/user/typongtv/).
+- **Bug Reports & Issues:** Encountered a problem? Open a ticket on [GitHub Issues](https://github.com/Typongtv/CRT-Screen-Off-Animation/issues) with your device model and Android version.
 
 ---
 
