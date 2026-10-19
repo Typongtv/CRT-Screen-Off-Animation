@@ -56,10 +56,17 @@ fun AboutScreen(
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("crt_prefs", android.content.Context.MODE_PRIVATE) }
+    val enableUiTwitching = remember { prefs.getBoolean("enable_ui_twitching", true) }
+    val enableScanlineArcs = remember { prefs.getBoolean("enable_scanline_arcs", true) }
+    val enableTouchStatic = remember { prefs.getBoolean("enable_touch_static", true) }
+
     // Physical CRT impact collision / card settle:
     // When opening on phone, fires after 260ms slide hits the left bezel.
     // In tablet mode right bay, fires after all staggered cards settle into place (~1150ms).
     LaunchedEffect(Unit) {
+        if (!enableUiTwitching) return@LaunchedEffect
         if (staggeredEntrance) {
             delay(1150L) // Wait for all staggered cards in the right bay to settle
         } else {
@@ -95,10 +102,11 @@ fun AboutScreen(
     CrtTouchStaticContainer(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212))
+            .background(Color(0xFF121212)),
+        enabled = enableTouchStatic
     ) {
         // High-voltage flickering scanline breakdown arcs
-        RandomScanlineArcOverlay(zIndex = 15f)
+        RandomScanlineArcOverlay(enabled = enableScanlineArcs, zIndex = 15f)
 
         Column(
             modifier = Modifier
@@ -179,19 +187,21 @@ fun AboutScreen(
                         text = "CRT Screen-Off Engine",
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
                     )
 
                     Text(
-                        text = "CyanogenMod-Inspired Retro CRT Physics for Modern Android",
+                        text = "Early Android Inspired Retro CRT Physics for Modern Devices",
                         fontSize = 14.sp,
                         lineHeight = 18.sp,
                         color = Color(0xFF94A3B8),
+                        textAlign = TextAlign.Center,
                         modifier = Modifier.padding(top = 4.dp, bottom = 6.dp)
                     )
 
                     Text(
-                        text = "100% Rootless • AGSL GPU Optics • 120Hz Hardware Acceleration",
+                        text = "Rootless • AGSL GPU Optics • 120Hz Hardware Acceleration",
                         fontSize = 12.sp,
                         lineHeight = 16.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -217,7 +227,7 @@ fun AboutScreen(
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Text(
-                                text = "Inspired by CyanogenMod's ElectronBeam Legacy",
+                                text = "Inspired by Early Android's ElectronBeam Legacy",
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 16.sp,
                                 lineHeight = 20.sp,
@@ -225,9 +235,9 @@ fun AboutScreen(
                             )
 
                             Text(
-                                text = "During the early days of Android (Android 2.3+ and the classic CyanogenMod era), one visual touch captured everyone's imagination: the iconic CRT screen-off animation, handled natively inside Android's display compositor SurfaceFlinger (ElectronBeam.cpp).\n\n" +
-                                        "As deflection coils collapsed the vertical sweep, the electron beam density flared into a searing horizontal razor line before vanishing into pure darkness. When newer Android releases retired this native effect, achieving it historically required device rooting, custom ROMs (CyanogenMod, Paranoid Android, AOKP), or running invasive framework-hooking tools that tripped Knox hardware fuses and broke SafetyNet / Play Integrity.\n\n" +
-                                        "This project revives that beloved retro electron-beam experience completely rootless on Android 13 through Android 16+, combining official Android Accessibility APIs with high-performance hardware-accelerated rendering.",
+                                text = "Back in the early days of Android, one visual touch captured everyone's imagination: the iconic CRT screen-off animation, handled natively inside the system display compositor.\n\n" +
+                                        "As the display collapsed inward, the screen flared into a searing horizontal razor line before vanishing into pitch darkness. It was a beloved aesthetic that users held on to for so long, refusing to let go even as subsequent Android updates retired the feature from stock software. Bringing it back historically required device rooting or invasive system-level modifications that tripped hardware security fuses and broke safety integrity checks.\n\n" +
+                                        "This project was born out of that deep nostalgic passion: reviving the legendary CRT screen-off experience completely rootless on Android 13 through Android 16+, blending official Android Accessibility APIs with high-performance hardware acceleration.",
                                 fontSize = 14.sp,
                                 lineHeight = 19.5.sp,
                                 color = Color(0xFFCBD5E1),
@@ -260,9 +270,9 @@ fun AboutScreen(
                             )
 
                             Text(
-                                text = "Modern versions of Android (Android 13 through Android 16+) possess stringent security sandbox protections that previously rendered framework-hooked screen-off animations obsolete. The objective of this project is twofold:\n\n" +
-                                        "1. Complete Rootless Execution: Seamlessly capture the active screen and trigger the display sleep action using official Android Accessibility APIs, ensuring 100% Knox/Play Integrity safety with zero root permissions.\n\n" +
-                                        "2. Dual-Engine Fidelity: Deliver a CyanogenMod-inspired Retro CRT engine calibrated with realistic vertical magnetic cling, directional true-color smear, and delayed crescendo flare, alongside an ultra-sophisticated, physics-based Enhanced Phosphor Overdrive engine engineered with modern AGSL GPU shaders and cathode afterglow.",
+                                text = "Modern versions of Android (Android 13 through Android 16+) possess stringent security sandbox protections that previously rendered system-hooked screen-off animations obsolete. The objective of this project is twofold:\n\n" +
+                                        "1. Complete Rootless Execution: Seamlessly capture the active screen and trigger the display sleep action using official Android Accessibility APIs, ensuring 100% Knox and Play Integrity safety with zero root permissions.\n\n" +
+                                        "2. Triple-Engine Fidelity: Deliver three distinct physical interpretations of the classic collapse—starting with an authentic Classic Cathode mode crafted to faithfully mimic the original aesthetic, followed by Studio Deflection and Enhanced Phosphor Overdrive modes that upgrade and elevate the visual experience with advanced deflection dynamics and AGSL GPU optics.",
                                 fontSize = 14.sp,
                                 lineHeight = 19.5.sp,
                                 color = Color(0xFFCBD5E1),
@@ -273,10 +283,10 @@ fun AboutScreen(
                 }
             }
 
-            // ── Section 3: Dual Animation Engines ──
+            // ── Section 3: Triple Animation Engines ──
             StaggeredCard(index = 4, enabled = staggeredEntrance) {
                 Column(modifier = Modifier.fillMaxWidth()) {
-                    AboutSectionHeader(title = "Dual Animation Engines")
+                    AboutSectionHeader(title = "Triple Animation Engines")
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -299,17 +309,17 @@ fun AboutScreen(
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "CyanogenMod Retro CRT Engine",
+                                    text = "Classic Cathode Engine",
                                     fontSize = 15.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color(0xFFE2E8F0)
                                 )
                             }
                             Text(
-                                text = "• Inspired by CyanogenMod (CM7 / CM9 / AOSP Gingerbread & ICS) SurfaceFlinger ElectronBeam.\n" +
-                                        "• Dual-harmonic magnetic resistance curve with distinct bezel cling (1.5% drop at 30%, 14% at 60%) snapping into terminal-velocity collapse.\n" +
-                                        "• Multi-tap true-color directional smear along the collapse vector with subtle optical chromatic fringe.\n" +
-                                        "• Delayed crescendo phosphor flare with additive wash peaking as the raster flattens, followed by a clean horizontal beam zip into extinction.",
+                                text = "• Faithfully mimics the nostalgic aesthetic of the early Android screen-off animation that fans held on to for years.\n" +
+                                        "• Recreates the authentic 2D collapse with a bright phosphor flash and swift central snap.\n" +
+                                        "• Strict raster confinement ensures letterbox borders remain pitch black throughout the animation.\n" +
+                                        "• Fast, pure hardware canvas rendering with zero shader overhead, staying true to the original feel.",
                                 fontSize = 13.5.sp,
                                 lineHeight = 18.sp,
                                 color = Color(0xFF94A3B8),
@@ -323,12 +333,45 @@ fun AboutScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Surface(
                                     shape = CircleShape,
+                                    color = Color(0xFF383838),
+                                    modifier = Modifier.size(26.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("2", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Studio Deflection Engine",
+                                    fontSize = 15.5.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFFE2E8F0)
+                                )
+                            }
+                            Text(
+                                text = "• Upgrades and enhances the visual appearance with refined magnetic deflection dynamics and natural pull curves.\n" +
+                                        "• Features true-color directional smear along the collapse axis with subtle optical chromatic fringe.\n" +
+                                        "• Dynamic crescendo luminance flare as the collapsing picture flattens into the central beam.\n" +
+                                        "• Incandescent filament core with electric cyan halo zipping shut cleanly into pitch-black standby.",
+                                fontSize = 13.5.sp,
+                                lineHeight = 18.sp,
+                                color = Color(0xFF94A3B8),
+                                modifier = Modifier.padding(start = 34.dp, top = 4.dp, bottom = 12.dp)
+                            )
+
+                            HorizontalDivider(color = Color(0xFF2E2E2E), thickness = 0.8.dp)
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Engine 3
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Surface(
+                                    shape = CircleShape,
                                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
                                     modifier = Modifier.size(26.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Text("2", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                                        Text("3", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -340,10 +383,11 @@ fun AboutScreen(
                                 )
                             }
                             Text(
-                                text = "• AGSL GPU Runtime Shaders (Android 13+) rendering true physical CRT optics in real-time.\n" +
-                                        "• Simulated electron deflection yoke with realistic electromagnetic inductance and resistance.\n" +
-                                        "• Spherical cathode tube curvature, RGB prism chromatic split, and dynamic scanline combing.\n" +
-                                        "• Lingering cathode phosphor persistence that stays visible after the screen turns pitch-black.",
+                                text = "• Pushes the retro CRT aesthetic into modern GPU physics using real-time AGSL runtime shaders (Android 13+).\n" +
+                                        "• Realistic electromagnetic deflection with customizable coil resistance and elastic border tension.\n" +
+                                        "• Unconfined Chromatic Breakout: Crimson and Cyan electron gun fringes break free of the collapsing bitmap frame into the dark glass, surging outward during high-speed vertical collapse and locking into a glowing multi-spectral crowning halo around the horizontal beam.\n" +
+                                        "• Spherical CRT tube curvature, anamorphic chromatic flare, and dynamic scanline combing.\n" +
+                                        "• Lingering cathode phosphor afterglow that stays visible on the glass after complete shutdown.",
                                 fontSize = 13.5.sp,
                                 lineHeight = 18.sp,
                                 color = Color(0xFF94A3B8),
@@ -372,11 +416,11 @@ fun AboutScreen(
                     // Feature 2
                     FeatureDetailCard(
                         category = "OPTICS & SHADERS",
-                        title = "AGSL GPU Chromatic Aberration & Optics",
+                        title = "AGSL GPU Chromatic Breakout & Kinetic Optics",
                         description = "Hardware-accelerated shader pipeline running on the device GPU:\n" +
-                                "• Exaggerated Red-Up / Cyan-Down vertical beam splitting as deflection coils collapse.\n" +
-                                "• Dynamic vertical squish motion blur.\n" +
-                                "• H-Sync horizontal scanline combing jitter and phosphor streak smear."
+                                "• Unconfined Asymmetric Breakout: Crimson gun overshoot above and Electric-Cyan undershoot below break free of the collapsing raster borders with soft exponential dispersion.\n" +
+                                "• Velocity-Coupled Dynamic Surge: Chromatic fringes surge with exaggerated outward offset during high-speed vertical collapse, then gracefully lock into a glowing multi-spectral crowning halo around the horizontal beam.\n" +
+                                "• Directional Squish Motion Blur, H-Sync scanline combing, and phosphor smear persistence."
                     )
 
                     // Feature 3
@@ -491,7 +535,7 @@ fun AboutScreen(
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
                         ) {
                             Text(
-                                text = "CRT Screen-Off Engine • v1.1.0",
+                                text = "CRT Screen-Off Engine • v1.2.0",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,

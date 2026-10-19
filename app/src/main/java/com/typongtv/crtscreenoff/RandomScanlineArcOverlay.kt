@@ -30,8 +30,11 @@ data class ArcScanline(
 @Composable
 fun RandomScanlineArcOverlay(
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     zIndex: Float = 18f
 ) {
+    if (!enabled) return
+
     var activeArcLines by remember { mutableStateOf<List<ArcScanline>>(emptyList()) }
     val arcAlphaAnim = remember { Animatable(0f) }
 

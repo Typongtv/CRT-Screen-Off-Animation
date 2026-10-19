@@ -38,6 +38,51 @@ enum class DeflectionDynamics(
     )
 }
 
+enum class CrtAnimationMode(
+    val id: Int,
+    val prefValue: String,
+    val title: String,
+    val subtitle: String
+) {
+    CLASSIC_CATHODE(
+        id = 1,
+        prefValue = "classic_cathode",
+        title = "MODE 1: CLASSIC CATHODE",
+        subtitle = "Pure hardware canvas collapse with transverse coil flare & phosphor flash"
+    ),
+    STUDIO_DEFLECTION(
+        id = 2,
+        prefValue = "studio_deflection",
+        title = "MODE 2: STUDIO DEFLECTION",
+        subtitle = "Bezel-locked magnetic sweep with inductive dynamics & needle dissipation"
+    ),
+    PHOSPHOR_OVERDRIVE(
+        id = 3,
+        prefValue = "phosphor_overdrive",
+        title = "MODE 3: PHOSPHOR OVERDRIVE",
+        subtitle = "Real-time AGSL GPU phosphor simulation, coil resistance & afterglow"
+    );
+
+    companion object {
+        const val PREF_KEY = "crt_animation_mode"
+
+        fun fromPreferences(prefs: android.content.SharedPreferences): CrtAnimationMode {
+            val modeStr = prefs.getString(PREF_KEY, null)
+            if (modeStr != null) {
+                return when (modeStr) {
+                    "classic_cathode", "vintage_cyanogen" -> CLASSIC_CATHODE
+                    "studio_deflection", "cyanogen_studio" -> STUDIO_DEFLECTION
+                    "phosphor_overdrive" -> PHOSPHOR_OVERDRIVE
+                    else -> entries.firstOrNull { it.prefValue == modeStr } ?: STUDIO_DEFLECTION
+                }
+            }
+            // Backward-compatibility fallback for legacy boolean
+            val legacyOverdrive = prefs.getBoolean("enable_enhanced_overdrive", false)
+            return if (legacyOverdrive) PHOSPHOR_OVERDRIVE else STUDIO_DEFLECTION
+        }
+    }
+}
+
 enum class CoilResistance(
     val label: String,
     val exponent: Float,
@@ -62,8 +107,9 @@ interface CrtRenderer {
  * Ultra-low-latency, hardware-accelerated CRT animation view host.
  *
  * Delegates rendering to:
- * - [CyanogenRenderer] (Mode 1: Retro CRT Screen-Off Animation)
- * - [PhosphorOverdriveRenderer] (Mode 2: Modern AGSL GPU phosphor physics & magnetic coil overdrive)
+ * - [ClassicCathodeRenderer] (Mode 1: Classic Cathode Screen-Off Animation)
+ * - [StudioDeflectionRenderer] (Mode 2: Studio Deflection Dynamics)
+ * - [PhosphorOverdriveRenderer] (Mode 3: Modern AGSL GPU phosphor physics & magnetic coil overdrive)
  */
 class CrtView(
     context: Context,
@@ -77,6 +123,7 @@ class CrtView(
     private val enableMagneticStretch: Boolean = true,
     private val enableAnamorphicFlare: Boolean = true,
     private val deflectionDynamics: DeflectionDynamics = DeflectionDynamics.STYLIZED_CREEP,
+    private val animationMode: CrtAnimationMode? = null,
     private val onAnimationComplete: () -> Unit
 ) : View(context) {
 
@@ -84,43 +131,63 @@ class CrtView(
     private var animator: ValueAnimator? = null
     private var isCompleted = false
 
-    // Effective duration:
-    // - In Enhanced Overdrive: coil inductance time multiplier & magnetic stretch dilation
-    // - In Cyanogen Retro: deflection dynamics time multiplier ensures standard collapse stays punchy with authentic beam zip
-    private val effectiveDurationMs: Long = if (enhancedOverdrive) {
-        val stretchBonus = if (enableMagneticStretch) 1.20f else 1.0f
-        (durationMs.toFloat() * coilResistance.timeMultiplier * stretchBonus).toLong()
+    // Resolve active animation mode: explicit parameter takes priority, then fallback to enhancedOverdrive
+    val resolvedMode: CrtAnimationMode = animationMode ?: if (enhancedOverdrive) {
+        CrtAnimationMode.PHOSPHOR_OVERDRIVE
     } else {
-        (durationMs.toFloat() * deflectionDynamics.timeMultiplier).toLong()
+        CrtAnimationMode.STUDIO_DEFLECTION
     }
 
-    // Total duration: in classic mode it's durationMs; in enhanced mode it accounts for resistance time dilation & afterglow
-    private val totalAnimDuration: Long = if (enhancedOverdrive && afterglowMs > 0L) {
+    // Effective duration:
+    // - In Classic Cathode: exact 1:1 user slider timing
+    // - In Studio Deflection: deflection dynamics time multiplier ensures standard collapse stays punchy
+    // - In Phosphor Overdrive: coil inductance time multiplier & magnetic stretch dilation
+    private val effectiveDurationMs: Long = when (resolvedMode) {
+        CrtAnimationMode.CLASSIC_CATHODE -> durationMs
+        CrtAnimationMode.STUDIO_DEFLECTION -> (durationMs.toFloat() * deflectionDynamics.timeMultiplier).toLong()
+        CrtAnimationMode.PHOSPHOR_OVERDRIVE -> {
+            val stretchBonus = if (enableMagneticStretch) 1.20f else 1.0f
+            (durationMs.toFloat() * coilResistance.timeMultiplier * stretchBonus).toLong()
+        }
+    }
+
+    // Total duration: in classic cathode and studio deflection it's effectiveDurationMs; in overdrive it accounts for resistance dilation & afterglow
+    private val totalAnimDuration: Long = if (resolvedMode == CrtAnimationMode.PHOSPHOR_OVERDRIVE && afterglowMs > 0L) {
         effectiveDurationMs + afterglowMs
     } else {
         effectiveDurationMs
     }
 
-    private val renderer: CrtRenderer = if (enhancedOverdrive) {
-        PhosphorOverdriveRenderer(
-            screenBitmap = screenBitmap,
-            style = style,
-            density = context.resources.displayMetrics.density,
-            effectiveDurationMs = effectiveDurationMs,
-            totalAnimDuration = totalAnimDuration,
-            flashIntensity = flashIntensity,
-            afterglowMs = afterglowMs,
-            coilResistance = coilResistance,
-            enableMagneticStretch = enableMagneticStretch,
-            enableAnamorphicFlare = enableAnamorphicFlare
-        )
-    } else {
-        CyanogenRenderer(
-            screenBitmap = screenBitmap,
-            style = style,
-            density = context.resources.displayMetrics.density,
-            deflectionDynamics = deflectionDynamics
-        )
+    private val renderer: CrtRenderer = when (resolvedMode) {
+        CrtAnimationMode.CLASSIC_CATHODE -> {
+            ClassicCathodeRenderer(
+                screenBitmap = screenBitmap,
+                style = style,
+                density = context.resources.displayMetrics.density
+            )
+        }
+        CrtAnimationMode.STUDIO_DEFLECTION -> {
+            StudioDeflectionRenderer(
+                screenBitmap = screenBitmap,
+                style = style,
+                density = context.resources.displayMetrics.density,
+                deflectionDynamics = deflectionDynamics
+            )
+        }
+        CrtAnimationMode.PHOSPHOR_OVERDRIVE -> {
+            PhosphorOverdriveRenderer(
+                screenBitmap = screenBitmap,
+                style = style,
+                density = context.resources.displayMetrics.density,
+                effectiveDurationMs = effectiveDurationMs,
+                totalAnimDuration = totalAnimDuration,
+                flashIntensity = flashIntensity,
+                afterglowMs = afterglowMs,
+                coilResistance = coilResistance,
+                enableMagneticStretch = enableMagneticStretch,
+                enableAnamorphicFlare = enableAnamorphicFlare
+            )
+        }
     }
 
     init {

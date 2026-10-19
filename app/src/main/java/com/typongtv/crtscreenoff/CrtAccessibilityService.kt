@@ -154,13 +154,19 @@ class CrtAccessibilityService : AccessibilityService() {
         }
 
         val now = SystemClock.uptimeMillis()
-        val isTablet = resources.configuration.smallestScreenWidthDp >= 600
-        val defaultSpeed = if (isTablet) 600 else 700
-        val enhancedOverdrive = prefs.getBoolean("enable_enhanced_overdrive", false)
-        val durationMs = if (enhancedOverdrive) {
-            prefs.getInt("anim_speed_overdrive", 500).toLong()
-        } else {
-            prefs.getInt("anim_speed", defaultSpeed).toLong().coerceIn(400L, 1200L)
+        val defaultSpeed = 600
+        val animationMode = CrtAnimationMode.fromPreferences(prefs)
+        val enhancedOverdrive = (animationMode == CrtAnimationMode.PHOSPHOR_OVERDRIVE)
+        val durationMs = when (animationMode) {
+            CrtAnimationMode.CLASSIC_CATHODE -> {
+                prefs.getInt("anim_speed_classic", prefs.getInt("anim_speed_vintage", 400)).toLong().coerceIn(200L, 1200L)
+            }
+            CrtAnimationMode.STUDIO_DEFLECTION -> {
+                prefs.getInt("anim_speed", defaultSpeed).toLong().coerceIn(400L, 1200L)
+            }
+            CrtAnimationMode.PHOSPHOR_OVERDRIVE -> {
+                prefs.getInt("anim_speed_overdrive", 500).toLong()
+            }
         }
         val afterglowMs = prefs.getInt("afterglow_duration", 800).toLong()
         val resistanceName = prefs.getString("coil_resistance", CoilResistance.HEAVY.name)
@@ -176,13 +182,19 @@ class CrtAccessibilityService : AccessibilityService() {
             DeflectionDynamics.STYLIZED_CREEP
         }
         val enableMagneticStretch = prefs.getBoolean("enable_magnetic_stretch", false)
-        val stretchBonus = if (enhancedOverdrive && enableMagneticStretch) 1.20f else 1.0f
-        val effectiveDurationMs = if (enhancedOverdrive) {
-            (durationMs.toFloat() * coilResistance.timeMultiplier * stretchBonus).toLong()
-        } else {
-            (durationMs.toFloat() * deflectionDynamics.timeMultiplier).toLong()
+        val effectiveDurationMs = when (animationMode) {
+            CrtAnimationMode.CLASSIC_CATHODE -> durationMs
+            CrtAnimationMode.STUDIO_DEFLECTION -> (durationMs.toFloat() * deflectionDynamics.timeMultiplier).toLong()
+            CrtAnimationMode.PHOSPHOR_OVERDRIVE -> {
+                val stretchBonus = if (enableMagneticStretch) 1.20f else 1.0f
+                (durationMs.toFloat() * coilResistance.timeMultiplier * stretchBonus).toLong()
+            }
         }
-        val totalDurationMs = if (enhancedOverdrive && afterglowMs > 0L) (effectiveDurationMs + afterglowMs) else effectiveDurationMs
+        val totalDurationMs = if (animationMode == CrtAnimationMode.PHOSPHOR_OVERDRIVE && afterglowMs > 0L) {
+            effectiveDurationMs + afterglowMs
+        } else {
+            effectiveDurationMs
+        }
 
         val debounceLimit = (totalDurationMs + 400L).coerceIn(400L, 2500L)
         if (isAnimating) {
@@ -235,7 +247,7 @@ class CrtAccessibilityService : AccessibilityService() {
             }
         }
 
-        val enhancedOverdrive = prefs.getBoolean("enable_enhanced_overdrive", false)
+        val animationMode = CrtAnimationMode.fromPreferences(prefs)
         val flashIntensity = prefs.getFloat("flash_intensity", 1.0f)
         val afterglowMs = prefs.getInt("afterglow_duration", 800).toLong()
         val resistanceName = prefs.getString("coil_resistance", CoilResistance.HEAVY.name)
@@ -260,13 +272,14 @@ class CrtAccessibilityService : AccessibilityService() {
             screenBitmap = capturedBitmap,
             style = style,
             durationMs = durationMs,
-            enhancedOverdrive = enhancedOverdrive,
+            enhancedOverdrive = (animationMode == CrtAnimationMode.PHOSPHOR_OVERDRIVE),
             flashIntensity = flashIntensity,
             afterglowMs = afterglowMs,
             coilResistance = coilResistance,
             enableMagneticStretch = enableMagneticStretch,
             enableAnamorphicFlare = enableAnamorphicFlare,
             deflectionDynamics = deflectionDynamics,
+            animationMode = animationMode,
             onAnimationComplete = {
                 // 1. Trigger the native system lock screen action immediately
                 performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)

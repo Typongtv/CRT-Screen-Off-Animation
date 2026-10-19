@@ -5,12 +5,12 @@
 # CRT Screen-Off Animation
 
 <p align="center">
-  <strong>CyanogenMod-Inspired Retro Electron-Beam Sleep Animation Engine for Modern Android (Android 13–16+)</strong>
+  <strong>Early Android Inspired Retro Electron-Beam Sleep Animation Engine for Modern Android (Android 13–16+)</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Android%2013%2B%20(API%2033%2B)-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Platform" />
-  <img src="https://img.shields.io/badge/Root-100%25%20Rootless-brightgreen?style=flat-square" alt="Rootless" />
+  <img src="https://img.shields.io/badge/Root-Rootless-brightgreen?style=flat-square" alt="Rootless" />
   <img src="https://img.shields.io/badge/GPU-AGSL%20RuntimeShader-blueviolet?style=flat-square" alt="AGSL" />
   <img src="https://img.shields.io/badge/Knox%20%2F%20SafetyNet-100%25%20Safe-success?style=flat-square" alt="SafetyNet Safe" />
   <a href="https://www.reddit.com/user/typongtv/"><img src="https://img.shields.io/badge/Reddit-u%2FTypongtv-FF4500?style=flat-square&logo=reddit&logoColor=white" alt="Reddit" /></a>
@@ -21,20 +21,21 @@
 
 ## Project Heritage & Lineage
 
-During the early days of Android (Android 2.3+ and the classic CyanogenMod era), one visual touch captured everyone's imagination: the iconic **CRT screen-off animation**. Handled natively inside Android's display compositor (`ElectronBeam.cpp`), it gave touchscreens the tactile soul of an old cathode-ray television.
+Back in the early days of Android, one visual touch captured everyone's imagination: the iconic **CRT screen-off animation**. Handled natively inside the system display compositor (`ElectronBeam.cpp`), it gave touchscreens the tactile soul of an old cathode-ray television.
 
-As deflection coils collapsed the vertical sweep, the electron beam density flared into a searing horizontal razor line before vanishing into pure cathode darkness. When newer Android releases retired this native effect, achieving it historically required device rooting, custom ROMs, or invasive framework-hooking tools that tripped Knox hardware fuses and broke SafetyNet / Play Integrity.
+As deflection coils collapsed the vertical raster, the concentrated electron beam flared into a searing horizontal razor line before vanishing into pitch darkness. It was a beloved aesthetic that users held on to for so long, refusing to let go even as subsequent Android updates retired the feature from stock software. Bringing it back historically required device rooting or invasive system-level modifications that tripped hardware security fuses and broke safety integrity checks.
 
-**CRT Screen-Off Animation** revives that beloved retro electron-beam experience completely **rootless on Android 13 through Android 16+**, combining official Android Accessibility APIs with high-performance, hardware-accelerated **AGSL (Android Graphics Shading Language)** rendering.
+**CRT Screen-Off Animation** revives that beloved retro electron-beam experience completely **rootless on Android 13 through Android 16+**, combining official Android Accessibility APIs with high-performance, hardware-accelerated rendering.
 
 ---
 
 ## Key Features
 
 - **Rootless & Knox Safe:** Zero root, zero Magisk, and zero framework modification required. Knox fuses and Play Integrity remain untouched.
-- **Dual Physics Animation Engines:**
-  - **CyanogenMod Retro Engine:** Inspired by the classic CM7/CM9 `ElectronBeam` sweep with dynamic vertical squish, true-color prism split, delayed crescendo flare, and clean horizontal beam zip.
-  - **Phosphor Overdrive Engine:** Simulates vintage CRT cathode tubes with customizable phosphor persistence (Green P1, Amber P3, Blue P4, White P4, Cyan), chromatic aberration, raster scanlines, and discharge flicker.
+- **Triple Physics Animation Engines:**
+  - **Classic Cathode Engine:** Faithfully mimics the nostalgic aesthetic of the early Android screen-off animation that fans held on to for years, featuring an authentic 2D collapse, phosphor flash, and swift snap into darkness.
+  - **Studio Deflection Engine:** Upgrades and enhances the visual experience with refined deflection dynamics, natural magnetic resistance, rich color preservation, and a searing center beam flare.
+  - **Enhanced Phosphor Overdrive Engine:** Pushes CRT fidelity into modern GPU physics with AGSL runtime shaders, simulating physical cathode tube curvature, chromatic aberration, raster scanline combing, and lingering phosphor afterglow.
 - **120Hz Hardware Acceleration:** Powered by native Android AGSL shaders running directly on the GPU for zero-stutter 120Hz deflection.
 - **Zero Idle Battery Impact:** No persistent foreground service, background wake locks, or polling loops. The engine is completely dormant until invoked.
 - **One-Tap & Gesture Triggers:**
@@ -90,7 +91,7 @@ If Google completely blocks the installation without an "Install anyway" button:
 2. Tap your **Profile icon** (top-right) ➔ Tap **Play Protect**.
 3. Tap the **gear icon** in the top-right corner.
 4. Temporarily toggle **OFF** *"Scan apps with Play Protect"*.
-5. Return to your file manager and install the APK (e.g., `CRT-Screen-Off-v1.1.0.apk`).
+5. Return to your file manager and install the APK (e.g., `CRT-Screen-Off-v1.2.0.apk`).
 6. *(Recommended)* Return to Play Protect settings and toggle scanning back **ON**.
 
 > **Note on Safety:** As verified in our open codebase and manifest, this application requests **0 internet permissions** (`android.permission.INTERNET` is not present). The app physically cannot connect to any server, collect data, or transmit information off your device.

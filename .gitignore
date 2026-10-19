@@ -48,3 +48,7 @@ diff_main.txt
 *.log
 *.tmp
 *.bak
+
+# Feature requests & internal design notes
+/Features Request/
+/Feature Requests/

@@ -15,7 +15,7 @@ import android.os.Build
 import kotlin.math.pow
 
 /**
- * Mode 1: Retro CRT Screen-Off Animation (inspired by CyanogenMod / AOSP ElectronBeam).
+ * Mode 2: Studio Deflection CRT Screen-Off Animation (inspired by CyanogenMod / AOSP ElectronBeam).
  *
  * 1. Inductive Magnetic Resistance: viscous initial creep resisting the pull (drops only ~1.5% at u=0.30,
  *    only ~14% at u=0.60), violently accelerating into a terminal-velocity plunge into the razor beam.
@@ -26,9 +26,9 @@ import kotlin.math.pow
  * 5. Additive Phosphor Wash (PorterDuff.Mode.ADD): pure white photon surge peaking at 0.92 at t = 0.66 as image flattens.
  * 6. Radiant Beam Zip: incandescent white core + electric cyan halo zipping shut into pure blackness without a cathode dot.
  *
- * Guaranteed 100% isolated from Mode 2 (Enhanced Phosphor Overdrive).
+ * Guaranteed 100% isolated from Mode 3 (Enhanced Phosphor Overdrive).
  */
-class CyanogenRenderer(
+class StudioDeflectionRenderer(
     private val screenBitmap: Bitmap,
     private val style: CrtStyle = CrtStyle.CLASSIC_HORIZONTAL,
     private val density: Float = 2.5f,
@@ -313,7 +313,8 @@ class CyanogenRenderer(
 }
 
 /**
- * Backward compatibility typealiases for Mode 1 renderer.
+ * Backward compatibility typealiases for Mode 2 Studio Deflection renderer.
  */
-typealias AuthenticXposedRenderer = CyanogenRenderer
-typealias CyanogenCrtRenderer = CyanogenRenderer
+typealias CyanogenRenderer = StudioDeflectionRenderer
+typealias AuthenticXposedRenderer = StudioDeflectionRenderer
+typealias CyanogenCrtRenderer = StudioDeflectionRenderer

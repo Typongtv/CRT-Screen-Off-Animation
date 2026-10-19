@@ -269,4 +269,51 @@ fun LogoutIcon(
     }
 }
 
+/**
+ * Mechanical gear Settings icon with center hub and 6 radial teeth.
+ */
+@Composable
+fun SettingsIcon(
+    tint: Color = Color.White,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier.size(20.dp)) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val strokeWidth = 1.8.dp.toPx()
+        val rOuter = size.minDimension * 0.44f
+        val rInner = size.minDimension * 0.32f
+        val rHole = size.minDimension * 0.16f
 
+        // Central hub circle
+        drawCircle(
+            color = tint,
+            radius = rHole,
+            center = Offset(cx, cy),
+            style = Stroke(width = strokeWidth)
+        )
+
+        // 6 radial gear teeth
+        val numTeeth = 6
+        for (i in 0 until numTeeth) {
+            val angle = Math.toRadians(i * (360.0 / numTeeth))
+            val cos = kotlin.math.cos(angle).toFloat()
+            val sin = kotlin.math.sin(angle).toFloat()
+            drawLine(
+                color = tint,
+                start = Offset(cx + cos * rInner, cy + sin * rInner),
+                end = Offset(cx + cos * rOuter, cy + sin * rOuter),
+                strokeWidth = strokeWidth * 1.5f,
+                cap = StrokeCap.Round
+            )
+        }
+
+        // Rim circle connecting the teeth roots
+        drawCircle(
+            color = tint,
+            radius = rInner,
+            center = Offset(cx, cy),
+            style = Stroke(width = strokeWidth)
+        )
+    }
+}

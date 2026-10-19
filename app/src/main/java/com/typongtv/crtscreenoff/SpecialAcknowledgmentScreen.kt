@@ -46,10 +46,17 @@ fun SpecialAcknowledgmentScreen(
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("crt_prefs", android.content.Context.MODE_PRIVATE) }
+    val enableUiTwitching = remember { prefs.getBoolean("enable_ui_twitching", true) }
+    val enableScanlineArcs = remember { prefs.getBoolean("enable_scanline_arcs", true) }
+    val enableTouchStatic = remember { prefs.getBoolean("enable_touch_static", true) }
+
     // Physical CRT impact collision / card settle:
     // When opening on phone, fires after 260ms slide hits the left bezel.
     // In tablet mode right bay, fires after all staggered cards settle into place (~1150ms).
     LaunchedEffect(Unit) {
+        if (!enableUiTwitching) return@LaunchedEffect
         if (staggeredEntrance) {
             delay(1150L) // Wait for all staggered cards in the right bay to settle
         } else {
@@ -85,10 +92,11 @@ fun SpecialAcknowledgmentScreen(
     CrtTouchStaticContainer(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF121212))
+            .background(Color(0xFF121212)),
+        enabled = enableTouchStatic
     ) {
         // High-voltage flickering scanline breakdown arcs
-        RandomScanlineArcOverlay(zIndex = 15f)
+        RandomScanlineArcOverlay(enabled = enableScanlineArcs, zIndex = 15f)
 
         Column(
             modifier = Modifier

@@ -155,10 +155,38 @@ fun PhoneDashboard(
         }
     }
 
+    var enableUiTwitching by remember {
+        mutableStateOf(prefs.getBoolean("enable_ui_twitching", true))
+    }
+    var enableScanlineArcs by remember {
+        mutableStateOf(prefs.getBoolean("enable_scanline_arcs", true))
+    }
+    var enableTouchStatic by remember {
+        mutableStateOf(prefs.getBoolean("enable_touch_static", true))
+    }
+
+    DisposableEffect(prefs) {
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                "enable_ui_twitching" -> enableUiTwitching = prefs.getBoolean("enable_ui_twitching", true)
+                "enable_scanline_arcs" -> enableScanlineArcs = prefs.getBoolean("enable_scanline_arcs", true)
+                "enable_touch_static" -> enableTouchStatic = prefs.getBoolean("enable_touch_static", true)
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose {
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
     val headerGlitchAnim = remember { Animatable(0f) }
 
     // Organic randomized chromatic aberration split loop for the fixed header title
-    LaunchedEffect(Unit) {
+    LaunchedEffect(enableUiTwitching) {
+        if (!enableUiTwitching) {
+            headerGlitchAnim.snapTo(0f)
+            return@LaunchedEffect
+        }
         while (isActive) {
             // Quiet dwell time between 2.8s and 5.2s
             delay(Random.nextLong(2800L, 5200L))
@@ -192,8 +220,11 @@ fun PhoneDashboard(
     var activeArcLines by remember { mutableStateOf<List<CapacitorArcLine>>(emptyList()) }
     val arcAlphaAnim = remember { Animatable(0f) }
 
-    LaunchedEffect(startCascade) {
-        if (!startCascade) return@LaunchedEffect
+    LaunchedEffect(startCascade, enableScanlineArcs) {
+        if (!startCascade || !enableScanlineArcs) {
+            activeArcLines = emptyList()
+            return@LaunchedEffect
+        }
         while (isActive) {
             // Random pause between 2.2s and 3.8s between discharge events
             delay(Random.nextLong(2200L, 3800L))
@@ -292,7 +323,12 @@ fun PhoneDashboard(
     var enableCrtAnimation by remember {
         mutableStateOf(prefs.getBoolean("enable_crt_animation", true))
     }
-    var speedMs by remember { mutableFloatStateOf(prefs.getInt("anim_speed", 700).toFloat().coerceIn(400f, 1200f)) }
+    var speedMs by remember { mutableFloatStateOf(prefs.getInt("anim_speed", 600).toFloat().coerceIn(400f, 1200f)) }
+    var speedClassicMs by remember {
+        mutableFloatStateOf(
+            prefs.getInt("anim_speed_classic", prefs.getInt("anim_speed_vintage", 400)).toFloat().coerceIn(200f, 1200f)
+        )
+    }
     var selectedStyle by remember {
         mutableStateOf(
             prefs.getString("anim_style", CrtStyle.CLASSIC_HORIZONTAL.name) ?: CrtStyle.CLASSIC_HORIZONTAL.name
@@ -306,6 +342,9 @@ fun PhoneDashboard(
     }
     var enableEnhancedOverdrive by remember {
         mutableStateOf(prefs.getBoolean("enable_enhanced_overdrive", false))
+    }
+    var animationMode by remember {
+        mutableStateOf(CrtAnimationMode.fromPreferences(prefs))
     }
     var flashIntensity by remember {
         mutableFloatStateOf(prefs.getFloat("flash_intensity", 1.0f))
@@ -374,6 +413,7 @@ fun PhoneDashboard(
 
     var showAboutPage by remember { mutableStateOf(false) }
     var showAcknowledgmentPage by remember { mutableStateOf(false) }
+    var showSettingsPage by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
 
     // Geeky Capacitor Discharge Advisory Banner state
@@ -419,6 +459,8 @@ fun PhoneDashboard(
             showAcknowledgmentPage = false
         } else if (showAboutPage) {
             showAboutPage = false
+        } else if (showSettingsPage) {
+            showSettingsPage = false
         } else if (menuExpanded) {
             menuExpanded = false
         } else {
@@ -508,7 +550,7 @@ fun PhoneDashboard(
                 }
 
                 // Header title chromatic split math & RenderEffect
-                val glitchVal = headerGlitchAnim.value
+                val glitchVal = if (enableUiTwitching) headerGlitchAnim.value else 0f
                 val headerChromaticOffset = glitchVal * 10f * density
                 val headerShakeX = if (glitchVal > 0.01f) sin(glitchVal * 20f) * 1.6f * density * glitchVal else 0f
                 val headerRenderEffect = remember(glitchVal) {
@@ -526,6 +568,7 @@ fun PhoneDashboard(
 
                 // Dashboard container: unified deflection coil shake, chromatic RenderEffect & subtle touch static
                 CrtTouchStaticContainer(
+                    enabled = enableTouchStatic,
                     subtleMode = true,
                     modifier = Modifier
                         .fillMaxSize()
@@ -905,7 +948,7 @@ fun PhoneDashboard(
                                 }
                             }
 
-                            // ── Card 3: Dual Engine Deck ──
+                            // ── Card 3: Screen-Off Engine ──
                             CascadingEntrance(index = 3, visible = startCascade) {
                                 Card(
                                     modifier = Modifier
@@ -922,7 +965,7 @@ fun PhoneDashboard(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                "Dual Engine Deck",
+                                                "CRT Engine Deck",
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 18.sp,
                                                 lineHeight = 22.sp,
@@ -941,7 +984,7 @@ fun PhoneDashboard(
 
                                         Text(
                                             if (enableCrtAnimation)
-                                                "Select the active CRT physics engine to configure below:"
+                                                "Select the active CRT physics\nengine to configure below:"
                                             else
                                                 "CRT screen-off animation is disabled. Screen will sleep with native display lock.",
                                             fontSize = 12.sp,
@@ -950,21 +993,25 @@ fun PhoneDashboard(
                                             modifier = Modifier.padding(top = 2.dp, bottom = 10.dp)
                                         )
 
-                                        // Mode 1: Cyanogen Retro Button
-                                        val isMode1Active = !enableEnhancedOverdrive
+                                        // Mode 1: Classic Cathode Button
+                                        val isMode1Active = animationMode == CrtAnimationMode.CLASSIC_CATHODE
                                         Surface(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clip(RoundedCornerShape(10.dp))
-                                                .clickable {
+                                                .clickable(enabled = enableCrtAnimation) {
+                                                    animationMode = CrtAnimationMode.CLASSIC_CATHODE
                                                     enableEnhancedOverdrive = false
-                                                    prefs.edit().putBoolean("enable_enhanced_overdrive", false).apply()
+                                                    prefs.edit()
+                                                        .putString(CrtAnimationMode.PREF_KEY, CrtAnimationMode.CLASSIC_CATHODE.prefValue)
+                                                        .putBoolean("enable_enhanced_overdrive", false)
+                                                        .apply()
                                                 },
                                             shape = RoundedCornerShape(10.dp),
-                                            color = if (isMode1Active) Color(0xFF132332) else Color(0xFF161616),
+                                            color = if (!enableCrtAnimation) Color(0xFF141414) else if (isMode1Active) Color(0xFF132332) else Color(0xFF161616),
                                             border = BorderStroke(
                                                 1.2.dp,
-                                                if (isMode1Active) MaterialTheme.colorScheme.primary else Color(0xFF2A2A2A)
+                                                if (!enableCrtAnimation) Color(0xFF222222) else if (isMode1Active) MaterialTheme.colorScheme.primary else Color(0xFF2A2A2A)
                                             )
                                         ) {
                                             Row(
@@ -975,23 +1022,23 @@ fun PhoneDashboard(
                                                     modifier = Modifier
                                                         .size(10.dp)
                                                         .clip(CircleShape)
-                                                        .background(if (isMode1Active) MaterialTheme.colorScheme.primary else Color(0xFF4A4A4A))
+                                                        .background(if (!enableCrtAnimation) Color(0xFF2E2E2E) else if (isMode1Active) MaterialTheme.colorScheme.primary else Color(0xFF4A4A4A))
                                                 )
                                                 Spacer(modifier = Modifier.width(10.dp))
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Text(
-                                                        text = "MODE 1: CYANOGEN RETRO",
+                                                        text = "MODE 1: CLASSIC CATHODE",
                                                         fontSize = 12.sp,
                                                         lineHeight = 14.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         letterSpacing = 0.5.sp,
-                                                        color = if (isMode1Active) MaterialTheme.colorScheme.primary else Color(0xFFCBD5E1)
+                                                        color = if (!enableCrtAnimation) Color(0xFF555555) else if (isMode1Active) MaterialTheme.colorScheme.primary else Color(0xFFCBD5E1)
                                                     )
                                                     Text(
-                                                        text = "CM7/CM9 Classic vintage electron beam collapse",
+                                                        text = "Pure hardware canvas collapse with transverse coil flare & phosphor flash",
                                                         fontSize = 10.5.sp,
                                                         lineHeight = 13.sp,
-                                                        color = Color(0xFF94A3B8),
+                                                        color = if (!enableCrtAnimation) Color(0xFF444444) else Color(0xFF94A3B8),
                                                         modifier = Modifier.padding(top = 1.dp)
                                                     )
                                                 }
@@ -1000,21 +1047,25 @@ fun PhoneDashboard(
 
                                         Spacer(modifier = Modifier.height(8.dp))
 
-                                        // Mode 2: Phosphor Overdrive Button
-                                        val isMode2Active = enableEnhancedOverdrive
+                                        // Mode 2: Studio Deflection Button
+                                        val isMode2Active = animationMode == CrtAnimationMode.STUDIO_DEFLECTION
                                         Surface(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clip(RoundedCornerShape(10.dp))
-                                                .clickable {
-                                                    enableEnhancedOverdrive = true
-                                                    prefs.edit().putBoolean("enable_enhanced_overdrive", true).apply()
+                                                .clickable(enabled = enableCrtAnimation) {
+                                                    animationMode = CrtAnimationMode.STUDIO_DEFLECTION
+                                                    enableEnhancedOverdrive = false
+                                                    prefs.edit()
+                                                        .putString(CrtAnimationMode.PREF_KEY, CrtAnimationMode.STUDIO_DEFLECTION.prefValue)
+                                                        .putBoolean("enable_enhanced_overdrive", false)
+                                                        .apply()
                                                 },
                                             shape = RoundedCornerShape(10.dp),
-                                            color = if (isMode2Active) Color(0xFF132332) else Color(0xFF161616),
+                                            color = if (!enableCrtAnimation) Color(0xFF141414) else if (isMode2Active) Color(0xFF132332) else Color(0xFF161616),
                                             border = BorderStroke(
                                                 1.2.dp,
-                                                if (isMode2Active) MaterialTheme.colorScheme.primary else Color(0xFF2A2A2A)
+                                                if (!enableCrtAnimation) Color(0xFF222222) else if (isMode2Active) MaterialTheme.colorScheme.primary else Color(0xFF2A2A2A)
                                             )
                                         ) {
                                             Row(
@@ -1025,23 +1076,77 @@ fun PhoneDashboard(
                                                     modifier = Modifier
                                                         .size(10.dp)
                                                         .clip(CircleShape)
-                                                        .background(if (isMode2Active) MaterialTheme.colorScheme.primary else Color(0xFF4A4A4A))
+                                                        .background(if (!enableCrtAnimation) Color(0xFF2E2E2E) else if (isMode2Active) MaterialTheme.colorScheme.primary else Color(0xFF4A4A4A))
                                                 )
                                                 Spacer(modifier = Modifier.width(10.dp))
                                                 Column(modifier = Modifier.weight(1f)) {
                                                     Text(
-                                                        text = "MODE 2: PHOSPHOR OVERDRIVE",
+                                                        text = "MODE 2: STUDIO DEFLECTION",
                                                         fontSize = 12.sp,
                                                         lineHeight = 14.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         letterSpacing = 0.5.sp,
-                                                        color = if (isMode2Active) MaterialTheme.colorScheme.primary else Color(0xFFCBD5E1)
+                                                        color = if (!enableCrtAnimation) Color(0xFF555555) else if (isMode2Active) MaterialTheme.colorScheme.primary else Color(0xFFCBD5E1)
                                                     )
                                                     Text(
-                                                        text = "Multi-line raster bloom & cathode dot afterglow",
+                                                        text = "Bezel-locked magnetic sweep with inductive dynamics & needle dissipation",
                                                         fontSize = 10.5.sp,
                                                         lineHeight = 13.sp,
-                                                        color = Color(0xFF94A3B8),
+                                                        color = if (!enableCrtAnimation) Color(0xFF444444) else Color(0xFF94A3B8),
+                                                        modifier = Modifier.padding(top = 1.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // Mode 3: Phosphor Overdrive Button
+                                        val isMode3Active = animationMode == CrtAnimationMode.PHOSPHOR_OVERDRIVE
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .clickable(enabled = enableCrtAnimation) {
+                                                    animationMode = CrtAnimationMode.PHOSPHOR_OVERDRIVE
+                                                    enableEnhancedOverdrive = true
+                                                    prefs.edit()
+                                                        .putString(CrtAnimationMode.PREF_KEY, CrtAnimationMode.PHOSPHOR_OVERDRIVE.prefValue)
+                                                        .putBoolean("enable_enhanced_overdrive", true)
+                                                        .apply()
+                                                },
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = if (!enableCrtAnimation) Color(0xFF141414) else if (isMode3Active) Color(0xFF132332) else Color(0xFF161616),
+                                            border = BorderStroke(
+                                                1.2.dp,
+                                                if (!enableCrtAnimation) Color(0xFF222222) else if (isMode3Active) MaterialTheme.colorScheme.primary else Color(0xFF2A2A2A)
+                                            )
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(10.dp)
+                                                        .clip(CircleShape)
+                                                        .background(if (!enableCrtAnimation) Color(0xFF2E2E2E) else if (isMode3Active) MaterialTheme.colorScheme.primary else Color(0xFF4A4A4A))
+                                                )
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = "MODE 3: PHOSPHOR OVERDRIVE",
+                                                        fontSize = 12.sp,
+                                                        lineHeight = 14.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        letterSpacing = 0.5.sp,
+                                                        color = if (!enableCrtAnimation) Color(0xFF555555) else if (isMode3Active) MaterialTheme.colorScheme.primary else Color(0xFFCBD5E1)
+                                                    )
+                                                    Text(
+                                                        text = "Real-time AGSL GPU phosphor simulation, coil resistance & afterglow",
+                                                        fontSize = 10.5.sp,
+                                                        lineHeight = 13.sp,
+                                                        color = if (!enableCrtAnimation) Color(0xFF444444) else Color(0xFF94A3B8),
                                                         modifier = Modifier.padding(top = 1.dp)
                                                     )
                                                 }
@@ -1051,17 +1156,18 @@ fun PhoneDashboard(
                                 }
                             }
 
-                            // ── Card 4: Cyanogen Inspired ──
+                            // ── Card 4: Classic Cathode Parameters ──
                             CascadingEntrance(index = 4, visible = startCascade) {
+                                val isClassicActive = animationMode == CrtAnimationMode.CLASSIC_CATHODE
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(bottom = 14.dp),
                                     shape = RoundedCornerShape(16.dp),
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (!enableEnhancedOverdrive && enableCrtAnimation) Color(0xFF1E2836) else MaterialTheme.colorScheme.surface
+                                        containerColor = if (isClassicActive && enableCrtAnimation) Color(0xFF1E2836) else MaterialTheme.colorScheme.surface
                                     ),
-                                    border = if (!enableEnhancedOverdrive && enableCrtAnimation) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null
+                                    border = if (isClassicActive && enableCrtAnimation) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null
                                 ) {
                                     Column(modifier = Modifier.padding(14.dp)) {
                                         Row(
@@ -1069,23 +1175,47 @@ fun PhoneDashboard(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                "Cyanogen Inspired",
+                                                "Classic Cathode",
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 18.sp,
                                                 lineHeight = 22.sp,
-                                                color = if (!enableEnhancedOverdrive && enableCrtAnimation) MaterialTheme.colorScheme.primary else Color.White,
+                                                color = if (isClassicActive && enableCrtAnimation) MaterialTheme.colorScheme.primary else Color.White,
                                                 modifier = Modifier.weight(1f)
                                             )
                                         }
                                         Text(
-                                            "CM7/CM9 classic CRT collapse with directional snap & CyanogenMod-inspired timing.",
+                                            "Pure hardware canvas collapse with transverse coil flare & phosphor flash.",
                                             fontSize = 11.sp,
                                             lineHeight = 13.5.sp,
                                             color = Color(0xFF94A3B8),
                                             modifier = Modifier.padding(top = 1.dp, bottom = 4.dp)
                                         )
 
-                                        if (enableEnhancedOverdrive) {
+                                        if (!enableCrtAnimation) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
+                                                border = BorderStroke(1.dp, Color(0xFF2E2E2E))
+                                            ) {
+                                                Column(modifier = Modifier.padding(10.dp)) {
+                                                    Text(
+                                                        "CRT Engine Deck Inactive",
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        fontSize = 12.sp,
+                                                        color = Color(0xFF6B7280)
+                                                    )
+                                                    Text(
+                                                        "Toggle the switch in CRT Engine Deck above to activate this engine.",
+                                                        fontSize = 11.sp,
+                                                        lineHeight = 13.sp,
+                                                        color = Color(0xFF555555),
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        } else if (!isClassicActive) {
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Card(
                                                 modifier = Modifier.fillMaxWidth(),
@@ -1095,13 +1225,214 @@ fun PhoneDashboard(
                                             ) {
                                                 Column(modifier = Modifier.padding(10.dp)) {
                                                     Text(
-                                                        "Phosphor Overdrive CRT Engine Active",
+                                                        if (animationMode == CrtAnimationMode.STUDIO_DEFLECTION) "Studio Deflection Engine Active" else "Phosphor Overdrive CRT Engine Active",
                                                         fontWeight = FontWeight.SemiBold,
                                                         fontSize = 12.sp,
                                                         color = Color(0xFF94A3B8)
                                                     )
                                                     Text(
-                                                        "Multi-line magnetic raster bloom, chromatic flare prism split, inductive coil resistance & afterglow persistence.",
+                                                        if (animationMode == CrtAnimationMode.STUDIO_DEFLECTION)
+                                                            "Bezel-locked magnetic sweep with inductive dynamics & needle dissipation."
+                                                        else
+                                                            "Real-time AGSL GPU phosphor simulation, coil resistance & afterglow persistence.",
+                                                        fontSize = 11.sp,
+                                                        lineHeight = 13.sp,
+                                                        color = Color(0xFF6B7280),
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        } else {
+                                            Column(modifier = Modifier.alpha(if (enableCrtAnimation) 1f else 0.38f)) {
+                                                Text(
+                                                    "Direction: ${if (selectedStyle == CrtStyle.CLASSIC_HORIZONTAL.name) "Horizontal (Classic)" else "Vertical"}",
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    lineHeight = 18.sp,
+                                                    color = Color(0xFF94A3B8),
+                                                    modifier = Modifier.padding(top = 6.dp, bottom = 4.dp)
+                                                )
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    FilterChip(
+                                                        selected = selectedStyle == CrtStyle.CLASSIC_HORIZONTAL.name,
+                                                        onClick = {
+                                                            if (enableCrtAnimation) {
+                                                                selectedStyle = CrtStyle.CLASSIC_HORIZONTAL.name
+                                                                prefs.edit().putString("anim_style", selectedStyle).apply()
+                                                            }
+                                                        },
+                                                        label = {
+                                                            Text(
+                                                                "Horizontal",
+                                                                fontSize = 16.sp,
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                textAlign = TextAlign.Center
+                                                            )
+                                                        },
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    FilterChip(
+                                                        selected = selectedStyle == CrtStyle.CLASSIC_VERTICAL.name,
+                                                        onClick = {
+                                                            if (enableCrtAnimation) {
+                                                                selectedStyle = CrtStyle.CLASSIC_VERTICAL.name
+                                                                prefs.edit().putString("anim_style", selectedStyle).apply()
+                                                            }
+                                                        },
+                                                        label = {
+                                                            Text(
+                                                                "Vertical",
+                                                                fontSize = 16.sp,
+                                                                modifier = Modifier.fillMaxWidth(),
+                                                                textAlign = TextAlign.Center
+                                                            )
+                                                        },
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                }
+
+                                                Spacer(modifier = Modifier.height(10.dp))
+
+                                                Text(
+                                                    "Animation Speed: ${speedClassicMs.toInt()} ms",
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    lineHeight = 18.sp,
+                                                    color = Color(0xFF94A3B8)
+                                                )
+                                                Slider(
+                                                    value = speedClassicMs,
+                                                    enabled = enableCrtAnimation,
+                                                    onValueChange = { speedClassicMs = it },
+                                                    onValueChangeFinished = {
+                                                        prefs.edit()
+                                                            .putInt("anim_speed_classic", speedClassicMs.toInt())
+                                                            .putInt("anim_speed_vintage", speedClassicMs.toInt())
+                                                            .apply()
+                                                    },
+                                                    valueRange = 200f..1200f,
+                                                    steps = 9
+                                                )
+
+                                                Spacer(modifier = Modifier.height(10.dp))
+
+                                                // Restore to Default button for Card 4
+                                                Button(
+                                                    onClick = {
+                                                        speedClassicMs = 400f
+                                                        selectedStyle = CrtStyle.CLASSIC_HORIZONTAL.name
+                                                        prefs.edit()
+                                                            .putInt("anim_speed_classic", 400)
+                                                            .putInt("anim_speed_vintage", 400)
+                                                            .putString("anim_style", CrtStyle.CLASSIC_HORIZONTAL.name)
+                                                            .apply()
+                                                        Toast.makeText(context, "Classic Cathode settings restored to default", Toast.LENGTH_SHORT).show()
+                                                    },
+                                                    enabled = enableCrtAnimation,
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = Color(0xFF1E1E1E),
+                                                        contentColor = Color.White
+                                                    ),
+                                                    border = BorderStroke(1.dp, Color(0xFF383838)),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(44.dp)
+                                                ) {
+                                                    Text(
+                                                        "Restore to Default",
+                                                        fontSize = 16.sp,
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ── Card 5: Studio Deflection Parameters ──
+                            CascadingEntrance(index = 5, visible = startCascade) {
+                                val isStudioActive = animationMode == CrtAnimationMode.STUDIO_DEFLECTION
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 14.dp),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isStudioActive && enableCrtAnimation) Color(0xFF1E2836) else MaterialTheme.colorScheme.surface
+                                    ),
+                                    border = if (isStudioActive && enableCrtAnimation) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "Studio Deflection",
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 18.sp,
+                                                lineHeight = 22.sp,
+                                                color = if (isStudioActive && enableCrtAnimation) MaterialTheme.colorScheme.primary else Color.White,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                        Text(
+                                            "Bezel-locked magnetic sweep with inductive dynamics & needle dissipation.",
+                                            fontSize = 11.sp,
+                                            lineHeight = 13.5.sp,
+                                            color = Color(0xFF94A3B8),
+                                            modifier = Modifier.padding(top = 1.dp, bottom = 4.dp)
+                                        )
+
+                                        if (!enableCrtAnimation) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
+                                                border = BorderStroke(1.dp, Color(0xFF2E2E2E))
+                                            ) {
+                                                Column(modifier = Modifier.padding(10.dp)) {
+                                                    Text(
+                                                        "CRT Engine Deck Inactive",
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        fontSize = 12.sp,
+                                                        color = Color(0xFF6B7280)
+                                                    )
+                                                    Text(
+                                                        "Toggle the switch in CRT Engine Deck above to activate this engine.",
+                                                        fontSize = 11.sp,
+                                                        lineHeight = 13.sp,
+                                                        color = Color(0xFF555555),
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        } else if (!isStudioActive) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
+                                                border = BorderStroke(1.dp, Color(0xFF333333))
+                                            ) {
+                                                Column(modifier = Modifier.padding(10.dp)) {
+                                                    Text(
+                                                        if (animationMode == CrtAnimationMode.CLASSIC_CATHODE) "Classic Cathode Engine Active" else "Phosphor Overdrive CRT Engine Active",
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        fontSize = 12.sp,
+                                                        color = Color(0xFF94A3B8)
+                                                    )
+                                                    Text(
+                                                        if (animationMode == CrtAnimationMode.CLASSIC_CATHODE)
+                                                            "Pure hardware canvas collapse with transverse coil flare & phosphor flash."
+                                                        else
+                                                            "Real-time AGSL GPU phosphor simulation, coil resistance & afterglow persistence.",
                                                         fontSize = 11.sp,
                                                         lineHeight = 13.sp,
                                                         color = Color(0xFF6B7280),
@@ -1181,9 +1512,9 @@ fun PhoneDashboard(
                                                     steps = 7
                                                 )
 
+                                                // Deflection Dynamics (Studio Deflection)
                                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                                // Deflection Dynamics (Classic Standard vs Stylized Creep)
                                                 val currentDynamics = try {
                                                     DeflectionDynamics.valueOf(selectedDeflectionDynamics)
                                                 } catch (_: Exception) {
@@ -1234,18 +1565,18 @@ fun PhoneDashboard(
 
                                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                                // Restore to Default button for Card 4
+                                                // Restore to Default button for Card 5
                                                 Button(
                                                     onClick = {
-                                                        speedMs = 700f
+                                                        speedMs = 600f
                                                         selectedStyle = CrtStyle.CLASSIC_HORIZONTAL.name
                                                         selectedDeflectionDynamics = DeflectionDynamics.STYLIZED_CREEP.name
                                                         prefs.edit()
-                                                            .putInt("anim_speed", 700)
+                                                            .putInt("anim_speed", 600)
                                                             .putString("anim_style", CrtStyle.CLASSIC_HORIZONTAL.name)
                                                             .putString("deflection_dynamics", DeflectionDynamics.STYLIZED_CREEP.name)
                                                             .apply()
-                                                        Toast.makeText(context, "Cyanogen settings restored to default", Toast.LENGTH_SHORT).show()
+                                                        Toast.makeText(context, "Studio Deflection settings restored to default", Toast.LENGTH_SHORT).show()
                                                     },
                                                     enabled = enableCrtAnimation,
                                                     colors = ButtonDefaults.buttonColors(
@@ -1270,17 +1601,18 @@ fun PhoneDashboard(
                                 }
                             }
 
-                            // ── Card 5: Enhanced Phosphor Overdrive ──
-                            CascadingEntrance(index = 5, visible = startCascade) {
+                            // ── Card 6: Enhanced Phosphor Overdrive ──
+                            CascadingEntrance(index = 6, visible = startCascade) {
+                                val isOverdriveActive = animationMode == CrtAnimationMode.PHOSPHOR_OVERDRIVE
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(bottom = 14.dp),
                                     shape = RoundedCornerShape(16.dp),
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (enableEnhancedOverdrive && enableCrtAnimation) Color(0xFF1E2836) else MaterialTheme.colorScheme.surface
+                                        containerColor = if (isOverdriveActive && enableCrtAnimation) Color(0xFF1E2836) else MaterialTheme.colorScheme.surface
                                     ),
-                                    border = if (enableEnhancedOverdrive && enableCrtAnimation) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null
+                                    border = if (isOverdriveActive && enableCrtAnimation) BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null
                                 ) {
                                     Column(modifier = Modifier.padding(14.dp)) {
                                         Row(
@@ -1292,7 +1624,7 @@ fun PhoneDashboard(
                                                 fontWeight = FontWeight.SemiBold,
                                                 fontSize = 18.sp,
                                                 lineHeight = 22.sp,
-                                                color = if (enableEnhancedOverdrive && enableCrtAnimation) MaterialTheme.colorScheme.primary else Color.White,
+                                                color = if (isOverdriveActive && enableCrtAnimation) MaterialTheme.colorScheme.primary else Color.White,
                                                 modifier = Modifier.weight(1f)
                                             )
                                         }
@@ -1304,7 +1636,31 @@ fun PhoneDashboard(
                                             modifier = Modifier.padding(top = 1.dp)
                                         )
 
-                                        if (!enableEnhancedOverdrive) {
+                                        if (!enableCrtAnimation) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Card(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
+                                                border = BorderStroke(1.dp, Color(0xFF2E2E2E))
+                                            ) {
+                                                Column(modifier = Modifier.padding(10.dp)) {
+                                                    Text(
+                                                        "CRT Engine Deck Inactive",
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        fontSize = 12.sp,
+                                                        color = Color(0xFF6B7280)
+                                                    )
+                                                    Text(
+                                                        "Toggle the switch in CRT Engine Deck above to activate this engine.",
+                                                        fontSize = 11.sp,
+                                                        lineHeight = 13.sp,
+                                                        color = Color(0xFF555555),
+                                                        modifier = Modifier.padding(top = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                        } else if (!isOverdriveActive) {
                                             Spacer(modifier = Modifier.height(8.dp))
                                             Card(
                                                 modifier = Modifier.fillMaxWidth(),
@@ -1314,13 +1670,16 @@ fun PhoneDashboard(
                                             ) {
                                                 Column(modifier = Modifier.padding(10.dp)) {
                                                     Text(
-                                                        "CyanogenMod Retro CRT Engine Active",
+                                                        if (animationMode == CrtAnimationMode.CLASSIC_CATHODE) "Classic Cathode Engine Active" else "Studio Deflection Engine Active",
                                                         fontWeight = FontWeight.SemiBold,
                                                         fontSize = 12.sp,
                                                         color = Color(0xFF94A3B8)
                                                     )
                                                     Text(
-                                                        "CM7/CM9 ElectronBeam inspired: dynamic vertical squish, true-color prism split, delayed crescendo flare & clean horizontal zip shut.",
+                                                        if (animationMode == CrtAnimationMode.CLASSIC_CATHODE)
+                                                            "Pure hardware canvas collapse with transverse coil flare & phosphor flash."
+                                                        else
+                                                            "Bezel-locked magnetic sweep with inductive dynamics & needle dissipation.",
                                                         fontSize = 11.sp,
                                                         lineHeight = 13.sp,
                                                         color = Color(0xFF6B7280),
@@ -1664,7 +2023,7 @@ fun PhoneDashboard(
                                             Box {
                                                 IconButton(
                                                     onClick = { menuExpanded = true },
-                                                    enabled = !showAboutPage && !showAcknowledgmentPage,
+                                                    enabled = !showAboutPage && !showAcknowledgmentPage && !showSettingsPage,
                                                     modifier = Modifier.size(38.dp)
                                                 ) {
                                                     MoreVertIcon(
@@ -1717,7 +2076,30 @@ fun PhoneDashboard(
                                                         onClick = {
                                                             menuExpanded = false
                                                             showAboutPage = false
+                                                            showSettingsPage = false
                                                             showAcknowledgmentPage = true
+                                                        }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                "Settings",
+                                                                color = Color.White,
+                                                                fontSize = 14.sp,
+                                                                fontWeight = FontWeight.Medium
+                                                            )
+                                                        },
+                                                        leadingIcon = {
+                                                            SettingsIcon(
+                                                                tint = MaterialTheme.colorScheme.primary,
+                                                                modifier = Modifier.size(18.dp)
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            menuExpanded = false
+                                                            showAcknowledgmentPage = false
+                                                            showAboutPage = false
+                                                            showSettingsPage = true
                                                         }
                                                     )
                                                     DropdownMenuItem(
@@ -1738,6 +2120,7 @@ fun PhoneDashboard(
                                                         onClick = {
                                                             menuExpanded = false
                                                             showAcknowledgmentPage = false
+                                                            showSettingsPage = false
                                                             showAboutPage = true
                                                         }
                                                     )
@@ -2057,7 +2440,8 @@ fun PhoneDashboard(
                                             }
                                             context.startActivity(intent)
                                         },
-                                        modifier = Modifier.fillMaxWidth()
+                                        modifier = Modifier.fillMaxWidth(),
+                                        enabledTwitch = enableUiTwitching
                                     )
                                 }
                             }
@@ -2085,7 +2469,7 @@ fun PhoneDashboard(
                 }
 
                 // Capacitive breakdown scanline arc overlay (subtle intermittent high-voltage tears across the whole viewport)
-                if (activeArcLines.isNotEmpty() && arcAlphaAnim.value > 0.005f) {
+                if (enableScanlineArcs && activeArcLines.isNotEmpty() && arcAlphaAnim.value > 0.005f) {
                     val currentAlpha = arcAlphaAnim.value
                     Canvas(
                         modifier = Modifier
@@ -2158,6 +2542,27 @@ fun PhoneDashboard(
                         .zIndex(20f)
                 ) {
                     SpecialAcknowledgmentScreen(onBack = { showAcknowledgmentPage = false })
+                }
+
+                // Settings Page Overlay
+                AnimatedVisibility(
+                    visible = showSettingsPage,
+                    enter = slideInHorizontally(
+                        initialOffsetX = { it },
+                        animationSpec = tween(260, easing = LinearEasing)
+                    ) + fadeIn(animationSpec = tween(140, easing = LinearEasing)),
+                    exit = slideOutHorizontally(
+                        targetOffsetX = { it },
+                        animationSpec = tween(240, easing = FastOutSlowInEasing)
+                    ) + fadeOut(animationSpec = tween(180)),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(20f)
+                ) {
+                    SettingsScreen(
+                        prefs = prefs,
+                        onBack = { showSettingsPage = false }
+                    )
                 }
 
                 // Vintage electrifying CRT intro splash with cathode strike, glitch & bloom
@@ -2335,7 +2740,8 @@ fun SetupOptionCard(
 fun DischargingTestButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    shape: Shape? = null
+    shape: Shape? = null,
+    enabledTwitch: Boolean = true
 ) {
     val configuration = LocalConfiguration.current
     val isTablet = configuration.smallestScreenWidthDp >= 600
@@ -2356,7 +2762,11 @@ fun DischargingTestButton(
     val dischargeAnim = remember { Animatable(0f) }
 
     // Organic randomized discharge loop
-    LaunchedEffect(Unit) {
+    LaunchedEffect(enabledTwitch) {
+        if (!enabledTwitch) {
+            dischargeAnim.snapTo(0f)
+            return@LaunchedEffect
+        }
         while (isActive) {
             // Unpredictable quiet rest between 2.2s and 4.6s
             val restDuration = Random.nextLong(2200L, 4600L)
@@ -2389,7 +2799,7 @@ fun DischargingTestButton(
         }
     }
 
-    val dischargeIntensity = if (isPressed) 1.0f else dischargeAnim.value
+    val dischargeIntensity = if (enabledTwitch) (if (isPressed) 1.0f else dischargeAnim.value) else 0f
 
     // Exact same deflection coil micro-shake math as dashboard
     val shakeX = if (dischargeIntensity > 0.001f) {

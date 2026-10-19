@@ -142,6 +142,7 @@ class PhosphorOverdriveRenderer(
     private val dotBounds = RectF()
 
     private val dstBounds = RectF()
+    private val coreBounds = RectF()
     private val redBounds = RectF()
     private val cyanBounds = RectF()
 
@@ -152,6 +153,8 @@ class PhosphorOverdriveRenderer(
         private const val CRT_AGSL_SOURCE = """
             uniform shader image;
             uniform float2 resolution;
+            uniform float2 center;
+            uniform float2 scale;
             uniform float verticalColorShift;
             uniform float verticalSquishBlur;
             uniform float scanlineStrength;
@@ -161,36 +164,73 @@ class PhosphorOverdriveRenderer(
             uniform float phosphorOverdrive;
             uniform float magneticStretch;
             uniform float magneticStretchAxis;
+            uniform float breakoutDistance;
+            uniform float breakoutIntensity;
+            uniform float time;
 
             vec4 main(vec2 fragCoord) {
-                // Center-relative normalized coordinates [-1.0, 1.0]
-                vec2 uv = (fragCoord / resolution) * 2.0 - 1.0;
+                vec2 delta = fragCoord - center;
+                vec2 halfExtents = 0.5 * resolution * max(scale, float2(0.0001, 0.0001));
 
-                // 1D Non-linear Elastic Wormhole Suction:
-                // Anchored at edges (ay == 1.0 -> 1.0, clings to bezels), sucking interior content toward center equator line
-                // Zero cross-axis distortion: strictly 1D vertical suction across full screen width
-                if (magneticStretch > 0.001) {
-                    float p = 1.0 - (magneticStretch * 0.65);
-                    if (magneticStretchAxis < 0.5) {
-                        float s = sign(uv.y);
-                        float ay = abs(uv.y);
-                        uv.y = s * pow(clamp(ay, 0.0, 1.0), p);
-                    } else {
-                        float s = sign(uv.x);
-                        float ax = abs(uv.x);
-                        uv.x = s * pow(clamp(ax, 0.0, 1.0), p);
+                // Determine distance outside the primary collapsing frame
+                float distOut = 0.0;
+                bool isVerticalCollapse = (magneticStretchAxis < 0.5);
+
+                if (isVerticalCollapse) {
+                    // Collapsing vertically into a horizontal line:
+                    // Constrain horizontally to frame width
+                    if (abs(delta.x) > halfExtents.x) {
+                        return vec4(0.0, 0.0, 0.0, 0.0);
                     }
+                    distOut = max(0.0, abs(delta.y) - halfExtents.y);
+                } else {
+                    // Collapsing horizontally into a vertical line:
+                    // Constrain vertically to frame height
+                    if (abs(delta.y) > halfExtents.y) {
+                        return vec4(0.0, 0.0, 0.0, 0.0);
+                    }
+                    distOut = max(0.0, abs(delta.x) - halfExtents.x);
                 }
 
-                // Subtle authentic spherical CRT glass curvature (barrel pincushion)
-                vec2 curve = uv * 0.028;
-                uv = uv + uv * vec2(curve.y * curve.y, curve.x * curve.x);
+                // High-voltage micro-flutter (deflection coil inductive ringing)
+                float flutter = 0.0;
+                if (breakoutIntensity > 0.05 && distOut > 0.0) {
+                    float freq = isVerticalCollapse ? fragCoord.x : fragCoord.y;
+                    flutter = sin(freq * 0.15 + time * 65.0) * (1.8 * breakoutIntensity);
+                }
 
-                if (abs(uv.x) > 1.0 || abs(uv.y) > 1.0) {
+                float effectiveBreakoutLimit = max(breakoutDistance + flutter, 0.0);
+
+                // If outside the active breakout corona, discard fragment
+                if (distOut > effectiveBreakoutLimit) {
                     return vec4(0.0, 0.0, 0.0, 0.0);
                 }
 
-                vec2 normCoord = (uv + 1.0) * 0.5 * resolution;
+                // Normalized frame coordinates [-1.0, 1.0] anchored within the collapsing frame
+                vec2 uv = delta / halfExtents;
+                vec2 clampedUv = clamp(uv, vec2(-1.0, -1.0), vec2(1.0, 1.0));
+
+                // 1D Non-linear Elastic Wormhole Suction (interior content only):
+                if (magneticStretch > 0.001 && distOut <= 0.001) {
+                    float p = 1.0 - (magneticStretch * 0.65);
+                    if (magneticStretchAxis < 0.5) {
+                        float s = sign(clampedUv.y);
+                        float ay = abs(clampedUv.y);
+                        clampedUv.y = s * pow(clamp(ay, 0.0, 1.0), p);
+                    } else {
+                        float s = sign(clampedUv.x);
+                        float ax = abs(clampedUv.x);
+                        clampedUv.x = s * pow(clamp(ax, 0.0, 1.0), p);
+                    }
+                }
+
+                // Subtle authentic spherical CRT glass curvature (barrel pincushion inside frame)
+                if (distOut <= 0.001) {
+                    vec2 curve = clampedUv * 0.028;
+                    clampedUv = clampedUv + clampedUv * vec2(curve.y * curve.y, curve.x * curve.x);
+                }
+
+                vec2 normCoord = (clampedUv + 1.0) * 0.5 * resolution;
 
                 // High-voltage deflection coil horizontal jitter (H-sync tear line combing)
                 float jitter = sin(normCoord.y * 0.12) * hSyncJitter;
@@ -201,40 +241,84 @@ class PhosphorOverdriveRenderer(
                 vec2 redCoord = greenCoord - vec2(0.0, resolution.y * verticalColorShift);
                 vec2 cyanCoord = greenCoord + vec2(0.0, resolution.y * verticalColorShift);
 
-                // Vertical Squish Motion Blur: 5-tap linear directional blur kernel
+                if (!isVerticalCollapse) {
+                    redCoord = greenCoord - vec2(resolution.x * verticalColorShift, 0.0);
+                    cyanCoord = greenCoord + vec2(resolution.x * verticalColorShift, 0.0);
+                }
+
+                // Directional Squish Motion Blur: 5-tap linear directional blur kernel
                 vec4 rSample = image.eval(redCoord);
                 vec4 cSample = image.eval(cyanCoord);
                 vec4 greenSample = image.eval(greenCoord);
 
                 if (verticalSquishBlur > 0.5) {
+                    vec2 blurStep = isVerticalCollapse ? vec2(0.0, verticalSquishBlur) : vec2(verticalSquishBlur, 0.0);
+
                     vec4 blurR = (
-                        image.eval(redCoord - vec2(0.0, verticalSquishBlur * 0.60)) +
-                        image.eval(redCoord - vec2(0.0, verticalSquishBlur * 0.30)) +
+                        image.eval(redCoord - blurStep * 0.60) +
+                        image.eval(redCoord - blurStep * 0.30) +
                         rSample +
-                        image.eval(redCoord + vec2(0.0, verticalSquishBlur * 0.30)) +
-                        image.eval(redCoord + vec2(0.0, verticalSquishBlur * 0.60))
+                        image.eval(redCoord + blurStep * 0.30) +
+                        image.eval(redCoord + blurStep * 0.60)
                     ) * 0.20;
 
                     vec4 blurC = (
-                        image.eval(cyanCoord - vec2(0.0, verticalSquishBlur * 0.60)) +
-                        image.eval(cyanCoord - vec2(0.0, verticalSquishBlur * 0.30)) +
+                        image.eval(cyanCoord - blurStep * 0.60) +
+                        image.eval(cyanCoord - blurStep * 0.30) +
                         cSample +
-                        image.eval(cyanCoord + vec2(0.0, verticalSquishBlur * 0.30)) +
-                        image.eval(cyanCoord + vec2(0.0, verticalSquishBlur * 0.60))
+                        image.eval(cyanCoord + blurStep * 0.30) +
+                        image.eval(cyanCoord + blurStep * 0.60)
                     ) * 0.20;
 
                     rSample = mix(rSample, blurR, 0.75);
                     cSample = mix(cSample, blurC, 0.75);
                 }
 
-                float r = rSample.r;
-                float b = cSample.b;
-
                 // Horizontal phosphor persistence trail (beam smear on high-contrast text)
                 vec2 smearCoord = greenCoord - vec2(resolution.x * 0.012 * phosphorSmear, 0.0);
                 vec4 smearSample = image.eval(smearCoord);
 
-                // Green channel combines true green with chromatic cyan blend + persistence smear
+                // -------------------------------------------------------------
+                // BREAKOUT CORONA ZONE (Outside the frame borders)
+                // -------------------------------------------------------------
+                if (distOut > 0.001) {
+                    float decaySigma = max(effectiveBreakoutLimit * 0.40, 1.0);
+                    float falloff = exp(-distOut / decaySigma) * breakoutIntensity;
+
+                    float signSide = isVerticalCollapse ? delta.y : delta.x;
+
+                    if (signSide < 0.0) {
+                        // RED / CRIMSON CHANNEL BREAKOUT:
+                        // High-voltage electron overshoot exciting red phosphor above frame (or left of frame)
+                        float rLuma = dot(rSample.rgb, vec3(0.299, 0.587, 0.114));
+                        float intensity = max(max(rSample.r * 1.35, rLuma * 1.10), 0.75 * breakoutIntensity);
+
+                        vec3 redCorona = vec3(
+                            intensity * 1.18,
+                            intensity * 0.12,
+                            intensity * 0.03
+                        );
+                        return vec4(redCorona * falloff, falloff);
+                    } else {
+                        // CYAN / ELECTRIC-BLUE CHANNEL BREAKOUT:
+                        // High-voltage electron undershoot exciting cyan/blue phosphor below frame (or right of frame)
+                        float cLuma = dot(cSample.rgb, vec3(0.299, 0.587, 0.114));
+                        float intensity = max(max(cSample.b * 1.30, cLuma * 1.10), 0.75 * breakoutIntensity);
+
+                        vec3 cyanCorona = vec3(
+                            intensity * 0.05,
+                            intensity * 0.82,
+                            intensity * 1.18
+                        );
+                        return vec4(cyanCorona * falloff, falloff);
+                    }
+                }
+
+                // -------------------------------------------------------------
+                // INSIDE FRAME: Full composite with phosphor overdrive
+                // -------------------------------------------------------------
+                float r = rSample.r;
+                float b = cSample.b;
                 float g = mix(greenSample.g, cSample.g, 0.50);
                 g = mix(g, max(g, smearSample.g), phosphorSmear * 0.60);
 
@@ -250,7 +334,8 @@ class PhosphorOverdriveRenderer(
 
                 // Micro-phosphor raster scanline modulation
                 if (scanlineStrength > 0.01) {
-                    float scan = (sin(fragCoord.y * scanlineDensity) + 1.0) * 0.5;
+                    float scanCoord = isVerticalCollapse ? fragCoord.y : fragCoord.x;
+                    float scan = (sin(scanCoord * scanlineDensity) + 1.0) * 0.5;
                     rgb *= (1.0 - (scanlineStrength * 0.35 * (1.0 - scan)));
                 }
 
@@ -547,14 +632,61 @@ class PhosphorOverdriveRenderer(
 
             // Draw bitmap with AGSL GPU Distortion or Fallback Radial Aberration
             if (alpha > 0.01f && scaleX > 0.001f && scaleY > 0.001f) {
-                canvas.save()
-                canvas.scale(scaleX.coerceAtLeast(0f), scaleY.coerceAtLeast(0f), centerX, centerY)
-                dstBounds.set(0f, 0f, w, h)
+                val halfW = (w * scaleX.coerceAtLeast(0f)) / 2f
+                val halfH = (h * scaleY.coerceAtLeast(0f)) / 2f
+                val isHorizontal = (style == CrtStyle.CLASSIC_HORIZONTAL)
+
+                // Base crowning offset around the equatorial beam
+                val baseCrowningPx = (36f * density) * flashIntensity * 1.15f
+                val currentBreakoutPx: Float
+                val currentBreakoutIntensity: Float
+                var surgeBell = 0f
+
+                if (c <= squashEnd) {
+                    val u = (c / squashEnd).coerceIn(0f, 1f)
+                    val baselineProgress = u.pow(2.2f)
+
+                    // Kinetic acceleration surge window:
+                    // Activates as the collapse gains speed (u > 0.40), peaks during terminal plunge (u ~ 0.75-0.85),
+                    // and gracefully decays back to 0 at u = 1.0 (entering the slit hold stage).
+                    val surgeProgress = ((u - 0.40f) / 0.60f).coerceIn(0f, 1f)
+                    surgeBell = kotlin.math.sin(surgeProgress * Math.PI.toFloat()).pow(1.5f)
+                    val surgeBoostPx = baseCrowningPx * 1.35f * surgeBell
+
+                    currentBreakoutPx = (baseCrowningPx * baselineProgress) + surgeBoostPx
+                    currentBreakoutIntensity = ((0.25f + 0.75f * baselineProgress) + (0.35f * surgeBell)).coerceIn(0f, 1.25f) * flashIntensity
+                } else if (c <= slitHoldEnd) {
+                    // Stage 1.5: Slit Hold peak white flash - returns exactly to the current awesome beam crowning appearance!
+                    currentBreakoutPx = baseCrowningPx
+                    currentBreakoutIntensity = 1.0f * flashIntensity
+                } else {
+                    // Stage 2: Fast horizontal snap whip - breakout tapers inward with beam
+                    val snapProgress = ((c - slitHoldEnd) / (1.0f - slitHoldEnd)).coerceIn(0f, 1f)
+                    currentBreakoutPx = baseCrowningPx * (1.0f - snapProgress).pow(0.8f)
+                    currentBreakoutIntensity = (1.0f - snapProgress) * flashIntensity
+                }
+
+                val breakoutX = if (isHorizontal) 0f else currentBreakoutPx
+                val breakoutY = if (isHorizontal) currentBreakoutPx else 0f
+
+                dstBounds.set(
+                    centerX - halfW - breakoutX,
+                    centerY - halfH - breakoutY,
+                    centerX + halfW + breakoutX,
+                    centerY + halfH + breakoutY
+                )
+                coreBounds.set(
+                    centerX - halfW,
+                    centerY - halfH,
+                    centerX + halfW,
+                    centerY + halfH
+                )
 
                 val shader = crtShader
                 if (shader != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    val verticalColorShiftAmount = 0.055f * aberrAmount * flashIntensity
-                    val verticalSquishBlurPx = (28f * density) * aberrAmount * flashIntensity
+                    val surgeFactor = 1.0f + (1.25f * surgeBell)
+                    val verticalColorShiftAmount = 0.055f * aberrAmount * flashIntensity * surgeFactor
+                    val verticalSquishBlurPx = (28f * density) * aberrAmount * flashIntensity * surgeFactor
 
                     val phosphorOverdriveAmount = if (c in (squashEnd * 0.35f)..slitHoldEnd) {
                         val washProg = ((c - squashEnd * 0.35f) / (slitHoldEnd - squashEnd * 0.35f)).coerceIn(0f, 1f)
@@ -564,6 +696,8 @@ class PhosphorOverdriveRenderer(
                     }
 
                     shader.setFloatUniform("resolution", w, h)
+                    shader.setFloatUniform("center", centerX, centerY)
+                    shader.setFloatUniform("scale", scaleX.coerceAtLeast(0.0001f), scaleY.coerceAtLeast(0.0001f))
                     shader.setFloatUniform("verticalColorShift", verticalColorShiftAmount)
                     shader.setFloatUniform("verticalSquishBlur", verticalSquishBlurPx)
                     shader.setFloatUniform("scanlineStrength", 0.30f * flashIntensity)
@@ -572,40 +706,57 @@ class PhosphorOverdriveRenderer(
                     shader.setFloatUniform("phosphorSmear", 0.95f * aberrAmount)
                     shader.setFloatUniform("phosphorOverdrive", phosphorOverdriveAmount)
                     shader.setFloatUniform("magneticStretch", stretchAmount)
-                    shader.setFloatUniform("magneticStretchAxis", if (style == CrtStyle.CLASSIC_HORIZONTAL) 0.0f else 1.0f)
+                    shader.setFloatUniform("magneticStretchAxis", if (isHorizontal) 0.0f else 1.0f)
+                    shader.setFloatUniform("breakoutDistance", currentBreakoutPx)
+                    shader.setFloatUniform("breakoutIntensity", currentBreakoutIntensity)
+                    shader.setFloatUniform("time", c * 10f)
 
                     shaderPaint.shader = shader
                     shaderPaint.alpha = (alpha * 255).toInt().coerceIn(0, 255)
                     canvas.drawRect(dstBounds, shaderPaint)
                 } else if (aberrAmount > 0.05f) {
-                    // Fallback Linear Red/Cyan Vertical Shift
-                    val verticalShiftPx = (28f * density) * aberrAmount * flashIntensity
+                    // Fallback Linear Red/Cyan Vertical Shift with breakout beyond bounds
+                    val verticalShiftPx = (currentBreakoutPx * 0.85f).coerceAtLeast(10f * density * aberrAmount)
 
                     redPaint.alpha = (alpha * 255).toInt().coerceIn(0, 255)
                     cyanPaint.alpha = (alpha * 255).toInt().coerceIn(0, 255)
 
-                    val redHalfW = w / 2f
-                    val redHalfH = h / 2f
-                    redBounds.set(
-                        centerX - redHalfW,
-                        centerY - redHalfH - verticalShiftPx,
-                        centerX + redHalfW,
-                        centerY + redHalfH - verticalShiftPx
-                    )
-                    canvas.drawBitmap(screenBitmap, null, redBounds, redPaint)
+                    if (isHorizontal) {
+                        redBounds.set(
+                            centerX - halfW,
+                            centerY - halfH - verticalShiftPx,
+                            centerX + halfW,
+                            centerY + halfH - (verticalShiftPx * 0.25f)
+                        )
+                        canvas.drawBitmap(screenBitmap, null, redBounds, redPaint)
 
-                    val cyanHalfW = w / 2f
-                    val cyanHalfH = h / 2f
-                    cyanBounds.set(
-                        centerX - cyanHalfW,
-                        centerY - cyanHalfH + verticalShiftPx,
-                        centerX + cyanHalfW,
-                        centerY + cyanHalfH + verticalShiftPx
-                    )
-                    canvas.drawBitmap(screenBitmap, null, cyanBounds, cyanPaint)
+                        cyanBounds.set(
+                            centerX - halfW,
+                            centerY - halfH + (verticalShiftPx * 0.25f),
+                            centerX + halfW,
+                            centerY + halfH + verticalShiftPx
+                        )
+                        canvas.drawBitmap(screenBitmap, null, cyanBounds, cyanPaint)
+                    } else {
+                        redBounds.set(
+                            centerX - halfW - verticalShiftPx,
+                            centerY - halfH,
+                            centerX + halfW - (verticalShiftPx * 0.25f),
+                            centerY + halfH
+                        )
+                        canvas.drawBitmap(screenBitmap, null, redBounds, redPaint)
+
+                        cyanBounds.set(
+                            centerX - halfW + (verticalShiftPx * 0.25f),
+                            centerY - halfH,
+                            centerX + halfW + verticalShiftPx,
+                            centerY + halfH
+                        )
+                        canvas.drawBitmap(screenBitmap, null, cyanBounds, cyanPaint)
+                    }
                 } else {
                     bitmapPaint.alpha = (alpha * 255).toInt().coerceIn(0, 255)
-                    canvas.drawBitmap(screenBitmap, null, dstBounds, bitmapPaint)
+                    canvas.drawBitmap(screenBitmap, null, coreBounds, bitmapPaint)
                 }
 
                 // Phosphor Luminescence Overdrive Wash as image approaches line
@@ -613,9 +764,8 @@ class PhosphorOverdriveRenderer(
                     val washProgress = ((c - squashEnd * 0.55f) / (slitHoldEnd - squashEnd * 0.55f)).coerceIn(0f, 1f)
                     val surge = (washProgress.pow(1.3f) * 0.65f * flashIntensity).coerceIn(0f, 1f)
                     washPaint.color = withAlpha(Color.WHITE, surge)
-                    canvas.drawRect(dstBounds, washPaint)
+                    canvas.drawRect(coreBounds, washPaint)
                 }
-                canvas.restore()
             }
 
             // Phosphor Slit Bloom & Hot-Core Filament

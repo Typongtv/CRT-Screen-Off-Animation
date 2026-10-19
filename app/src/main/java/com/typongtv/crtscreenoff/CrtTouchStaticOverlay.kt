@@ -40,9 +40,17 @@ private data class TouchStaticArc(
 @Composable
 fun CrtTouchStaticContainer(
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     subtleMode: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    if (!enabled) {
+        Box(modifier = modifier.fillMaxSize()) {
+            content()
+        }
+        return
+    }
+
     var touchPosition by remember { mutableStateOf<Offset?>(null) }
     var isTouching by remember { mutableStateOf(false) }
     var currentArcs by remember { mutableStateOf<List<TouchStaticArc>>(emptyList()) }
