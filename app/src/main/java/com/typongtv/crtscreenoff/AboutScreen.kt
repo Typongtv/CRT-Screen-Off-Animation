@@ -535,7 +535,7 @@ fun AboutScreen(
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
                         ) {
                             Text(
-                                text = "CRT Screen-Off Engine • v1.2.0",
+                                text = "CRT Screen-Off Engine • v1.2.1",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,

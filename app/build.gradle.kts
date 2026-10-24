@@ -11,8 +11,8 @@ android {
         applicationId = "com.typongtv.crtscreenoff"
         minSdk = 33
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.2.0"
+        versionCode = 5
+        versionName = "1.2.1"
     }
 
     buildTypes {

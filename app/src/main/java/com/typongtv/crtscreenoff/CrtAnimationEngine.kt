@@ -1,14 +1,12 @@
 package com.typongtv.crtscreenoff
 
-import android.animation.Animator
-import android.animation.AnimatorListenerAdapter
-import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.os.SystemClock
+import android.view.Choreographer
 import android.view.View
-import android.view.animation.LinearInterpolator
 
 enum class CrtStyle {
     CLASSIC_HORIZONTAL, // Vertical collapse to line -> Horizontal snap to dot
@@ -128,7 +126,8 @@ class CrtView(
 ) : View(context) {
 
     private var progress = 0f
-    private var animator: ValueAnimator? = null
+    private var choreographerCallback: Choreographer.FrameCallback? = null
+    private var animStartTime: Long = 0L
     private var isCompleted = false
 
     // Resolve active animation mode: explicit parameter takes priority, then fallback to enhancedOverdrive
@@ -200,30 +199,45 @@ class CrtView(
     }
 
     private fun startAnimation() {
-        animator?.cancel()
-        animator = ValueAnimator.ofFloat(0f, 1f).apply {
-            duration = totalAnimDuration
-            interpolator = LinearInterpolator()
-            addUpdateListener { animation ->
-                progress = animation.animatedValue as Float
+        stopAnimation()
+        animStartTime = 0L
+        val frameCallback = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (isCompleted) return
+                val now = SystemClock.uptimeMillis()
+                if (animStartTime == 0L) {
+                    animStartTime = now
+                }
+                val elapsed = now - animStartTime
+                progress = if (totalAnimDuration > 0L) {
+                    (elapsed.toFloat() / totalAnimDuration).coerceIn(0f, 1f)
+                } else {
+                    1f
+                }
                 invalidate()
+                if (progress >= 1f) {
+                    choreographerCallback = null
+                    finishOnce()
+                } else {
+                    Choreographer.getInstance().postFrameCallback(this)
+                }
             }
-            addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: Animator) {
-                    finishOnce()
-                }
+        }
+        choreographerCallback = frameCallback
+        Choreographer.getInstance().postFrameCallback(frameCallback)
+    }
 
-                override fun onAnimationCancel(animation: Animator) {
-                    finishOnce()
-                }
-            })
-            start()
+    private fun stopAnimation() {
+        choreographerCallback?.let {
+            Choreographer.getInstance().removeFrameCallback(it)
+            choreographerCallback = null
         }
     }
 
     private fun finishOnce() {
         if (!isCompleted) {
             isCompleted = true
+            stopAnimation()
             renderer.release()
             onAnimationComplete()
         }
@@ -245,8 +259,7 @@ class CrtView(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        animator?.cancel()
-        animator = null
+        stopAnimation()
         renderer.release()
     }
 }
